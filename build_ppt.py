@@ -1,890 +1,1192 @@
-"""Generate NEVAGS DEC Presentation PowerPoint"""
+"""NEVAGS DEC Presentation — Professional redesign matching template style"""
 from pptx import Presentation
-from pptx.util import Inches, Pt, Emu
+from pptx.util import Inches, Pt
 from pptx.dml.color import RGBColor
 from pptx.enum.text import PP_ALIGN
-from pptx.util import Inches, Pt
-from pptx.enum.dml import MSO_THEME_COLOR
-import copy
 
-# ── Colours ───────────────────────────────────────────────
-FOREST   = RGBColor(0x1B, 0x43, 0x32)
-FOREST2  = RGBColor(0x2D, 0x6A, 0x4F)
-FMID     = RGBColor(0x40, 0x91, 0x6C)
-ORANGE   = RGBColor(0xE8, 0x69, 0x0A)
-CHARCOAL = RGBColor(0x1C, 0x2B, 0x28)
-WHITE    = RGBColor(0xFF, 0xFF, 0xFF)
-CREAM    = RGBColor(0xF8, 0xF4, 0xEE)
-LGRAY    = RGBColor(0xF1, 0xF5, 0xF9)
-DGRAY    = RGBColor(0x64, 0x74, 0x8B)
-GREEN3   = RGBColor(0xD8, 0xF3, 0xDC)
-ORANGE2  = RGBColor(0xFD, 0xBA, 0x74)
+# ── Design tokens ─────────────────────────────────────────
+F      = "Calibri"          # font family
+DARK   = RGBColor(0x1C,0x2B,0x28)  # near-black heading
+GRAY   = RGBColor(0x4B,0x55,0x63)  # body text
+LGRAY  = RGBColor(0x9C,0xA3,0xAF)  # captions / metadata
+CARD   = RGBColor(0xF3,0xF4,0xF6)  # card background
+LCARD  = RGBColor(0xF8,0xFA,0xFC)  # lighter card
+WHITE  = RGBColor(0xFF,0xFF,0xFF)
+GREEN  = RGBColor(0x1B,0x43,0x32)  # NEVAGS forest green
+GREEN2 = RGBColor(0x2D,0x6A,0x4F)  # mid green
+GREEN3 = RGBColor(0x40,0x91,0x6C)  # light green
+ORANGE = RGBColor(0xE8,0x69,0x0A)  # NEVAGS orange
+AMBER  = RGBColor(0xF5,0x9E,0x0B)  # amber
+RED    = RGBColor(0xDC,0x26,0x26)
 
-# ── Slide dimensions (widescreen 16:9) ────────────────────
+# ── Canvas ────────────────────────────────────────────────
 W = Inches(13.33)
 H = Inches(7.5)
 
 prs = Presentation()
 prs.slide_width  = W
 prs.slide_height = H
+BLANK = prs.slide_layouts[6]
 
-BLANK = prs.slide_layouts[6]  # completely blank
-
-# ── Helpers ───────────────────────────────────────────────
-def add_rect(slide, x, y, w, h, fill, alpha=None):
-    s = slide.shapes.add_shape(1, x, y, w, h)
-    s.line.fill.background()
-    s.fill.solid()
-    s.fill.fore_color.rgb = fill
+# ── Primitive helpers ─────────────────────────────────────
+def R(sl, x, y, w, h, fill, border=None):
+    s = sl.shapes.add_shape(1, x, y, w, h)
+    s.fill.solid(); s.fill.fore_color.rgb = fill
+    if border:
+        s.line.color.rgb = border; s.line.width = Pt(0.75)
+    else:
+        s.line.fill.background()
     return s
 
-def add_text(slide, text, x, y, w, h, size=18, bold=False, color=WHITE,
-             align=PP_ALIGN.LEFT, wrap=True, italic=False):
-    tb = slide.shapes.add_textbox(x, y, w, h)
-    tb.word_wrap = wrap
+def T(sl, text, x, y, w, h, sz=12, bold=False, color=DARK,
+      align=PP_ALIGN.LEFT, italic=False):
+    tb = sl.shapes.add_textbox(x, y, w, h)
+    tb.word_wrap = True
     p = tb.text_frame.paragraphs[0]
     p.alignment = align
-    run = p.add_run()
-    run.text = text
-    run.font.size = Pt(size)
-    run.font.bold = bold
-    run.font.italic = italic
-    run.font.color.rgb = color
-    run.font.name = "Calibri"
+    r = p.add_run()
+    r.text = text; r.font.size = Pt(sz); r.font.bold = bold
+    r.font.italic = italic; r.font.color.rgb = color; r.font.name = F
     return tb
 
-def add_para(tf, text, size=14, bold=False, color=CHARCOAL, align=PP_ALIGN.LEFT,
-             space_before=0, italic=False):
+def P(tf, text, sz=11, bold=False, color=GRAY,
+      align=PP_ALIGN.LEFT, sp=0, italic=False):
     p = tf.add_paragraph()
     p.alignment = align
-    if space_before:
-        p.space_before = Pt(space_before)
-    run = p.add_run()
-    run.text = text
-    run.font.size = Pt(size)
-    run.font.bold = bold
-    run.font.italic = italic
-    run.font.color.rgb = color
-    run.font.name = "Calibri"
+    if sp: p.space_before = Pt(sp)
+    r = p.add_run()
+    r.text = text; r.font.size = Pt(sz); r.font.bold = bold
+    r.font.italic = italic; r.font.color.rgb = color; r.font.name = F
     return p
 
-def section_header(slide, label, title, dark=True):
-    """Standard section header band at top of slide."""
-    bg = CHARCOAL if dark else FOREST
-    add_rect(slide, 0, 0, W, Inches(1.3), bg)
-    add_text(slide, label.upper(), Inches(0.4), Inches(0.08), Inches(12), Inches(0.3),
-             size=9, bold=True, color=ORANGE, align=PP_ALIGN.LEFT)
-    add_text(slide, title, Inches(0.4), Inches(0.32), Inches(12.5), Inches(0.85),
-             size=28, bold=True, color=WHITE, align=PP_ALIGN.LEFT)
+# ── Layout components ──────────────────────────────────────
+STRIP_H = Inches(0.50)   # header strip height
+CONTENT_Y = Inches(1.80) # where body content starts
 
-def accent_bar(slide, x, y, w=Inches(0.5), h=Inches(0.05)):
-    add_rect(slide, x, y, w, h, ORANGE)
+def page_header(sl, section, page, invert=False):
+    """Thin top strip: company name | section | page number, then two rule lines."""
+    bg = GREEN if invert else WHITE
+    R(sl, 0, 0, W, STRIP_H, bg)
+    lo = WHITE if invert else ORANGE
+    lm = WHITE if invert else LGRAY
+    T(sl, "NEVAGS ECO BRICK & CONSTRUCTION",
+      Inches(0.4), Inches(0.13), Inches(5), Inches(0.26),
+      sz=9, bold=True, color=lo)
+    T(sl, section.upper(),
+      Inches(4.5), Inches(0.13), Inches(5.5), Inches(0.26),
+      sz=9, color=lm, align=PP_ALIGN.CENTER)
+    T(sl, f"May 2026  ·  {page:02d}",
+      Inches(11.2), Inches(0.13), Inches(1.95), Inches(0.26),
+      sz=9, color=lm, align=PP_ALIGN.RIGHT)
+    R(sl, 0, STRIP_H,            W, Inches(0.022), GREEN)
+    R(sl, 0, STRIP_H+Inches(0.022), W, Inches(0.008), ORANGE)
 
-def stat_box(slide, x, y, w, h, number, label, sub="", bg=FOREST, num_color=WHITE):
-    add_rect(slide, x, y, w, h, bg)
-    add_text(slide, number, x+Inches(0.15), y+Inches(0.12), w-Inches(0.3), Inches(0.55),
-             size=26, bold=True, color=num_color, align=PP_ALIGN.CENTER)
-    add_text(slide, label, x+Inches(0.1), y+Inches(0.62), w-Inches(0.2), Inches(0.28),
-             size=11, bold=True, color=ORANGE2, align=PP_ALIGN.CENTER)
+def section_head(sl, label, heading, page, invert=False):
+    """Section label + big bold heading + short green rule."""
+    page_header(sl, label, page, invert)
+    ht = WHITE if invert else DARK
+    T(sl, label.upper(),
+      Inches(0.5), Inches(0.70), Inches(12), Inches(0.28),
+      sz=9, bold=True, color=ORANGE)
+    T(sl, heading,
+      Inches(0.5), Inches(0.95), Inches(12.3), Inches(0.75),
+      sz=34, bold=True, color=ht)
+    R(sl, Inches(0.5), Inches(1.68), Inches(1.1), Inches(0.038), GREEN)
+
+def stat_card(sl, x, y, w, h, number, label, sub="",
+              num_color=GREEN, bg=CARD):
+    """Large-number stat card — clean, minimal."""
+    R(sl, x, y, w, h, bg)
+    R(sl, x, y, w, Inches(0.038), GREEN)          # top accent
+    T(sl, number,
+      x+Inches(0.2), y+Inches(0.1), w-Inches(0.4), Inches(0.6),
+      sz=30, bold=True, color=num_color)
+    T(sl, label,
+      x+Inches(0.2), y+Inches(0.66), w-Inches(0.4), Inches(0.26),
+      sz=10, bold=True, color=DARK)
     if sub:
-        add_text(slide, sub, x+Inches(0.1), y+Inches(0.88), w-Inches(0.2), Inches(0.28),
-                 size=8, color=RGBColor(0xCC,0xCC,0xCC), align=PP_ALIGN.CENTER)
+        T(sl, sub,
+          x+Inches(0.2), y+Inches(0.90), w-Inches(0.4), Inches(0.28),
+          sz=8.5, color=LGRAY)
 
-def bullet_box(slide, x, y, w, h, title, bullets, bg=WHITE, title_color=FOREST,
-               bullet_color=CHARCOAL, title_size=14, bullet_size=11):
-    add_rect(slide, x, y, w, h, bg)
-    add_text(slide, title, x+Inches(0.18), y+Inches(0.14), w-Inches(0.3), Inches(0.3),
-             size=title_size, bold=True, color=title_color)
-    bx = slide.shapes.add_textbox(x+Inches(0.18), y+Inches(0.48), w-Inches(0.3), h-Inches(0.55))
-    bx.word_wrap = True
-    tf = bx.text_frame
-    tf.word_wrap = True
+def card(sl, x, y, w, h, title, bullets,
+         bg=CARD, accent=GREEN, tc=DARK, bc=GRAY, tsz=11, bsz=10):
+    """Content card with left accent bar."""
+    R(sl, x, y, w, h, bg)
+    R(sl, x, y, Inches(0.038), h, accent)
+    T(sl, title,
+      x+Inches(0.18), y+Inches(0.14), w-Inches(0.28), Inches(0.32),
+      sz=tsz, bold=True, color=tc)
+    bx = sl.shapes.add_textbox(
+        x+Inches(0.18), y+Inches(0.50), w-Inches(0.28), h-Inches(0.58))
+    bx.word_wrap = True; tf = bx.text_frame; tf.word_wrap = True
     first = True
     for b in bullets:
         if first:
             p = tf.paragraphs[0]; first = False
         else:
             p = tf.add_paragraph()
-        p.space_before = Pt(3)
-        run = p.add_run()
-        run.text = ("• " if not b.startswith("•") else "") + b
-        run.font.size = Pt(bullet_size)
-        run.font.color.rgb = bullet_color
-        run.font.name = "Calibri"
+        p.space_before = Pt(4)
+        r = p.add_run()
+        r.text = b; r.font.size = Pt(bsz); r.font.color.rgb = bc
+        r.font.name = F
 
-def add_table(slide, x, y, w, rows, cols, data, col_widths=None,
-              header_bg=FOREST, row_bg=WHITE, alt_bg=LGRAY):
-    row_h = Inches(0.42)
-    tbl = slide.shapes.add_table(rows, cols, x, y, w, row_h * rows).table
-    if col_widths:
-        for i, cw in enumerate(col_widths):
-            tbl.columns[i].width = cw
+def table(sl, x, y, w, rows, cols, data, cw=None,
+          hbg=GREEN, alt=RGBColor(0xF8,0xFA,0xFC)):
+    rh = Inches(0.40)
+    tbl = sl.shapes.add_table(rows, cols, x, y, w, rh*rows).table
+    if cw:
+        for i, c in enumerate(cw): tbl.columns[i].width = c
     for r in range(rows):
         for c in range(cols):
             cell = tbl.cell(r, c)
-            cell.margin_left = Inches(0.08)
-            cell.margin_right = Inches(0.08)
-            cell.margin_top = Inches(0.04)
-            cell.margin_bottom = Inches(0.04)
-            tf = cell.text_frame
-            tf.word_wrap = True
-            p = tf.paragraphs[0]
-            run = p.add_run()
+            cell.margin_left = cell.margin_right = Inches(0.1)
+            cell.margin_top  = cell.margin_bottom = Inches(0.04)
+            tf = cell.text_frame; tf.word_wrap = True
+            p = tf.paragraphs[0]; run = p.add_run()
             val = data[r][c] if r < len(data) and c < len(data[r]) else ""
-            run.text = str(val)
-            run.font.name = "Calibri"
+            run.text = str(val); run.font.name = F
             if r == 0:
-                run.font.size = Pt(10)
-                run.font.bold = True
+                run.font.size = Pt(10); run.font.bold = True
                 run.font.color.rgb = WHITE
-                fill = cell.fill; fill.solid(); fill.fore_color.rgb = header_bg
+                f = cell.fill; f.solid(); f.fore_color.rgb = hbg
             else:
-                run.font.size = Pt(10)
-                run.font.color.rgb = CHARCOAL
-                bg = alt_bg if r % 2 == 0 else row_bg
-                fill = cell.fill; fill.solid(); fill.fore_color.rgb = bg
-    return tbl
+                run.font.size = Pt(10); run.font.color.rgb = GRAY
+                f = cell.fill; f.solid()
+                f.fore_color.rgb = alt if r % 2 == 0 else WHITE
+
+def footer_bar(sl, text, bg=GREEN, tc=WHITE, sz=10):
+    R(sl, 0, H-Inches(0.42), W, Inches(0.42), bg)
+    T(sl, text, Inches(0.5), H-Inches(0.38), Inches(12.33), Inches(0.32),
+      sz=sz, bold=True, color=tc, align=PP_ALIGN.CENTER)
 
 
 # ═══════════════════════════════════════════════════════════
 # SLIDE 1 — COVER
 # ═══════════════════════════════════════════════════════════
-slide = prs.slides.add_slide(BLANK)
-add_rect(slide, 0, 0, W, H, CHARCOAL)
-# Green left band
-add_rect(slide, 0, 0, Inches(0.45), H, FOREST)
-# Orange top accent strip
-add_rect(slide, Inches(0.45), Inches(1.6), Inches(12.88), Inches(0.06), ORANGE)
+sl = prs.slides.add_slide(BLANK)
+R(sl, 0, 0, W, H, WHITE)
 
-add_text(slide, "DISTRICT EXECUTIVE COMMITTEE PRESENTATION",
-         Inches(0.65), Inches(0.25), Inches(12), Inches(0.4),
-         size=10, bold=True, color=ORANGE)
-add_text(slide, "Mulanje District, Malawi  ·  May 2026",
-         Inches(0.65), Inches(0.62), Inches(10), Inches(0.35),
-         size=11, color=RGBColor(0xAA,0xBB,0xAA))
+# Right dark panel
+R(sl, Inches(8.3), 0, Inches(5.03), H, GREEN)
 
-add_text(slide, "NEVAGS",
-         Inches(0.65), Inches(1.72), Inches(12), Inches(1.4),
-         size=72, bold=True, color=WHITE)
-add_text(slide, "ECO BRICK & CONSTRUCTION",
-         Inches(0.65), Inches(3.05), Inches(10), Inches(0.55),
-         size=26, bold=True, color=FMID)
-add_text(slide, '"Building Tomorrow Sustainably"',
-         Inches(0.65), Inches(3.65), Inches(9), Inches(0.45),
-         size=17, italic=True, color=RGBColor(0xCC,0xDD,0xCC))
+# Orange top stripe
+R(sl, 0, 0, Inches(8.3), Inches(0.06), ORANGE)
 
-# Key stats row
-bw = Inches(2.9)
-bh = Inches(1.15)
-by = Inches(4.95)
-stat_box(slide, Inches(0.65), by, bw, bh, "K450M+", "Capital Invested", "Founder + Atmosfair EUR 175K", FOREST2)
-stat_box(slide, Inches(3.65), by, bw, bh, "51 Staff", "Current Workforce", "15 Female · 36 Male", CHARCOAL, ORANGE2)
-stat_box(slide, Inches(6.65), by, bw, bh, "K2.07B", "Revenue Potential", "Annual MWK at full capacity", FOREST)
-stat_box(slide, Inches(9.65), by, bw, bh, "8,000+", "Jobs in 3 Years", "Direct + Community ecosystem", ORANGE, WHITE)
+# Left content
+T(sl, "DISTRICT EXECUTIVE COMMITTEE",
+  Inches(0.55), Inches(0.28), Inches(7.5), Inches(0.28),
+  sz=10, bold=True, color=ORANGE)
+T(sl, "Mulanje District, Malawi  ·  May 2026",
+  Inches(0.55), Inches(0.55), Inches(7.5), Inches(0.28),
+  sz=10, color=LGRAY)
 
-add_text(slide, "One of the first black-owned industrial companies in Mulanje District",
-         Inches(0.65), Inches(4.72), Inches(9), Inches(0.25),
-         size=9, bold=True, color=ORANGE2)
+# Company name — large
+T(sl, "NEVAGS",
+  Inches(0.5), Inches(1.2), Inches(7.7), Inches(1.5),
+  sz=88, bold=True, color=GREEN)
+T(sl, "ECO BRICK & CONSTRUCTION",
+  Inches(0.55), Inches(2.65), Inches(7.5), Inches(0.55),
+  sz=22, bold=True, color=DARK)
+T(sl, '"Building Tomorrow Sustainably"',
+  Inches(0.55), Inches(3.22), Inches(7.5), Inches(0.38),
+  sz=14, italic=True, color=GRAY)
 
+# Thin rule
+R(sl, Inches(0.55), Inches(3.68), Inches(4.5), Inches(0.025), GREEN)
 
-# ═══════════════════════════════════════════════════════════
-# SLIDE 2 — ABOUT / WHY WE EXIST
-# ═══════════════════════════════════════════════════════════
-slide = prs.slides.add_slide(BLANK)
-add_rect(slide, 0, 0, W, H, CREAM)
-section_header(slide, "Company Background", "Why NEVAGS Exists", dark=True)
-
-# Left column: problem
-add_rect(slide, Inches(0.3), Inches(1.5), Inches(5.9), Inches(5.6), WHITE)
-add_text(slide, "THE PROBLEM", Inches(0.5), Inches(1.65), Inches(5.5), Inches(0.3),
-         size=10, bold=True, color=ORANGE)
-accent_bar(slide, Inches(0.5), Inches(1.95))
-tx = slide.shapes.add_textbox(Inches(0.5), Inches(2.05), Inches(5.5), Inches(4.8))
-tx.word_wrap = True
-tf = tx.text_frame; tf.word_wrap = True
-add_para(tf, "Malawi's Housing & Deforestation Crisis", 13, True, CHARCOAL)
-add_para(tf, "• Over 80–90% of houses in Malawi are built with fired clay bricks",
-         10, False, DGRAY, space_before=5)
-add_para(tf, "• For decades, bricks were fired using massive quantities of firewood",
-         10, False, DGRAY, space_before=3)
-add_para(tf, "• Malawi has one of the fastest deforestation rates in Africa", 10, False, DGRAY, space_before=3)
-add_para(tf, "• Deforestation causes soil erosion, flooding, biodiversity loss", 10, False, DGRAY, space_before=3)
-add_para(tf, "", 6)
-add_para(tf, "The Government's Response", 13, True, CHARCOAL, space_before=4)
-add_para(tf, "• Malawi Government BANNED firewood-fired bricks", 10, True, RGBColor(0xCC,0x00,0x00), space_before=5)
-add_para(tf, "• This creates a critical supply gap across the construction sector", 10, False, DGRAY, space_before=3)
-add_para(tf, "• Developers, NGOs, and government projects need a legal alternative", 10, False, DGRAY, space_before=3)
-add_para(tf, "• Demand is policy-driven, long-term, and nationwide", 10, True, FOREST, space_before=3)
-
-# Right column: solution
-add_rect(slide, Inches(6.5), Inches(1.5), Inches(6.5), Inches(5.6), FOREST)
-add_text(slide, "THE SOLUTION", Inches(6.7), Inches(1.65), Inches(6.1), Inches(0.3),
-         size=10, bold=True, color=ORANGE)
-accent_bar(slide, Inches(6.7), Inches(1.95))
-tx2 = slide.shapes.add_textbox(Inches(6.7), Inches(2.05), Inches(6.1), Inches(4.8))
-tx2.word_wrap = True
-tf2 = tx2.text_frame; tf2.word_wrap = True
-add_para(tf2, "NEVAGS Eco Brick & Construction", 14, True, WHITE)
-add_para(tf2, "Operating from Musewu, Mulanje District, we deploy VSK (Vertical Shaft Kiln) technology fuelled entirely by biomass briquettes — producing high-quality bricks with zero firewood.",
-         10, False, RGBColor(0xCC,0xDD,0xCC), space_before=6)
-add_para(tf2, "", 5)
-add_para(tf2, "✓  Zero firewood — 100% policy compliant", 11, True, RGBColor(0x90,0xEE,0x90), space_before=4)
-add_para(tf2, "✓  Scalable industrial production", 11, False, RGBColor(0xCC,0xDD,0xCC), space_before=3)
-add_para(tf2, "✓  Affordable pricing for developers", 11, False, RGBColor(0xCC,0xDD,0xCC), space_before=3)
-add_para(tf2, "✓  Located in the heart of Mulanje", 11, False, RGBColor(0xCC,0xDD,0xCC), space_before=3)
-add_para(tf2, "✓  Already employing 51 community members", 11, False, RGBColor(0xCC,0xDD,0xCC), space_before=3)
-add_para(tf2, "✓  Backed by GIZ, Atmosfair & research partners", 11, False, RGBColor(0xCC,0xDD,0xCC), space_before=3)
-add_para(tf2, "", 5)
-add_para(tf2, '"When we build, let us think that we build forever."', 10, True,
-         RGBColor(0xF5,0x9E,0x0B), space_before=4, italic=True)
-add_para(tf2, "— John Ruskin", 9, False, RGBColor(0xAA,0xBB,0xAA), space_before=2)
-
-
-# ═══════════════════════════════════════════════════════════
-# SLIDE 3 — LEADERSHIP & OWNERSHIP
-# ═══════════════════════════════════════════════════════════
-slide = prs.slides.add_slide(BLANK)
-add_rect(slide, 0, 0, W, H, CREAM)
-section_header(slide, "Company Ownership & Location", "Leadership & Registration", dark=True)
-
-# Pioneer badge
-add_rect(slide, Inches(0.3), Inches(1.5), Inches(12.73), Inches(0.55), RGBColor(0xFF,0xF3,0xE0))
-add_text(slide, "🏆  One of the first black-owned industrial companies in Mulanje District — a pioneer enterprise building a legacy of community ownership",
-         Inches(0.5), Inches(1.56), Inches(12.4), Inches(0.42),
-         size=10, bold=True, color=ORANGE)
-
-# Charles Nasala card
-add_rect(slide, Inches(0.3), Inches(2.2), Inches(4.0), Inches(4.5), FOREST)
-accent_bar(slide, Inches(0.3), Inches(2.2), Inches(4.0), Inches(0.08))
-add_text(slide, "FOUNDER, OWNER &\nMANAGING DIRECTOR",
-         Inches(0.5), Inches(2.3), Inches(3.6), Inches(0.5),
-         size=9, bold=True, color=ORANGE)
-add_text(slide, "Charles Billy Nasala",
-         Inches(0.5), Inches(2.78), Inches(3.6), Inches(0.55),
-         size=18, bold=True, color=WHITE)
-tx = slide.shapes.add_textbox(Inches(0.5), Inches(3.35), Inches(3.5), Inches(3.1))
-tx.word_wrap = True; tf = tx.text_frame; tf.word_wrap = True
-add_para(tf, "Entrepreneur, industrial innovator, and community development champion. Founder of one of Malawi's first VSK brick enterprises.",
-         9, False, RGBColor(0xCC,0xDD,0xCC))
-add_para(tf, "", 4)
-add_para(tf, "📞  +265 888 34 75 75", 9, False, RGBColor(0xAA,0xFF,0xAA), space_before=3)
-add_para(tf, "📞  +265 99 751 0160", 9, False, RGBColor(0xAA,0xFF,0xAA), space_before=2)
-add_para(tf, "✉   nasalacharles.b@gmail.com", 9, False, ORANGE2, space_before=3)
-
-# Chancy Tsonga card
-add_rect(slide, Inches(4.5), Inches(2.2), Inches(4.0), Inches(4.5), CHARCOAL)
-accent_bar(slide, Inches(4.5), Inches(2.2), Inches(4.0), Inches(0.08))
-add_text(slide, "FOUNDING ENGINEER &\nBUSINESS DEVELOPMENT MANAGER",
-         Inches(4.7), Inches(2.3), Inches(3.6), Inches(0.5),
-         size=9, bold=True, color=ORANGE)
-add_text(slide, "Chancy Tausi Tsonga",
-         Inches(4.7), Inches(2.78), Inches(3.6), Inches(0.55),
-         size=18, bold=True, color=WHITE)
-tx2 = slide.shapes.add_textbox(Inches(4.7), Inches(3.35), Inches(3.5), Inches(3.1))
-tx2.word_wrap = True; tf2 = tx2.text_frame; tf2.word_wrap = True
-add_para(tf2, "VSK technology specialist, construction innovator, and strategic partner. Leads business development and market expansion.",
-         9, False, RGBColor(0xCC,0xDD,0xCC))
-add_para(tf2, "", 4)
-add_para(tf2, "📞  +265 984 000 366", 9, False, RGBColor(0xAA,0xFF,0xAA), space_before=3)
-add_para(tf2, "💬  WhatsApp: +27 764 998 4601", 9, False, RGBColor(0xAA,0xFF,0xAA), space_before=2)
-add_para(tf2, "✉   chancy.tsonga@yahoo.com", 9, False, ORANGE2, space_before=3)
-add_para(tf2, "🌐  chancytsonga.com", 9, False, RGBColor(0x90,0xD0,0xFF), space_before=2)
-
-# Company details card
-add_rect(slide, Inches(8.7), Inches(2.2), Inches(4.33), Inches(4.5), WHITE)
-accent_bar(slide, Inches(8.7), Inches(2.2), Inches(4.33), Inches(0.08))
-add_text(slide, "COMPANY DETAILS",
-         Inches(8.9), Inches(2.3), Inches(4.0), Inches(0.3),
-         size=9, bold=True, color=ORANGE)
-tx3 = slide.shapes.add_textbox(Inches(8.9), Inches(2.65), Inches(3.9), Inches(3.8))
-tx3.word_wrap = True; tf3 = tx3.text_frame; tf3.word_wrap = True
-add_para(tf3, "Registered Entity", 10, True, CHARCOAL)
-add_para(tf3, "New Vision Anenenji Construction", 10, False, DGRAY, space_before=2)
-add_para(tf3, "Registration No. 46289", 10, False, DGRAY, space_before=1)
-add_para(tf3, "", 4)
-add_para(tf3, "Location", 10, True, CHARCOAL, space_before=4)
-add_para(tf3, "Musewu, Mulanje District\nSouthern Malawi", 10, False, DGRAY, space_before=2)
-add_para(tf3, "P.O. Box 90, Mulanje", 10, False, DGRAY, space_before=1)
-add_para(tf3, "", 4)
-add_para(tf3, "Operational Reach", 10, True, CHARCOAL, space_before=4)
-add_para(tf3, "Blantyre · Lilongwe · Mzuzu\nSouthern Africa expansion planned", 10, False, DGRAY, space_before=2)
-add_para(tf3, "", 4)
-add_para(tf3, "Careers / HR", 10, True, CHARCOAL, space_before=4)
-add_para(tf3, "careers.nevags@gmail.com", 10, False, ORANGE, space_before=2)
-
-
-# ═══════════════════════════════════════════════════════════
-# SLIDE 4 — MISSION & VISION
-# ═══════════════════════════════════════════════════════════
-slide = prs.slides.add_slide(BLANK)
-add_rect(slide, 0, 0, W, H, RGBColor(0x0F, 0x1F, 0x15))
-section_header(slide, "Mission, Vision & Objectives", "Our Strategic Foundation", dark=False)
-
-# Mission
-add_rect(slide, Inches(0.3), Inches(1.5), Inches(4.1), Inches(5.6), FOREST2)
-add_text(slide, "MISSION", Inches(0.5), Inches(1.65), Inches(3.8), Inches(0.3),
-         size=10, bold=True, color=ORANGE)
-add_text(slide, "What We Do",
-         Inches(0.5), Inches(1.97), Inches(3.8), Inches(0.4),
-         size=16, bold=True, color=WHITE)
-add_text(slide, "To produce high-quality, environmentally compliant bricks using VSK technology and biomass briquettes — providing affordable building materials that support Malawi's housing sector while protecting forests, creating jobs, and empowering communities in Mulanje District and beyond.",
-         Inches(0.5), Inches(2.4), Inches(3.7), Inches(3.2),
-         size=11, color=RGBColor(0xCC,0xEE,0xDD))
-
-# Vision
-add_rect(slide, Inches(4.6), Inches(1.5), Inches(4.1), Inches(5.6), CHARCOAL)
-add_text(slide, "VISION", Inches(4.8), Inches(1.65), Inches(3.8), Inches(0.3),
-         size=10, bold=True, color=ORANGE)
-add_text(slide, "Where We're Going",
-         Inches(4.8), Inches(1.97), Inches(3.8), Inches(0.4),
-         size=16, bold=True, color=WHITE)
-add_text(slide, "To build a scalable ecosystem for sustainable, affordable, and climate-resilient housing across Malawi and Southern Africa — positioning NEVAGS as the benchmark for eco-industrial construction innovation on the African continent.",
-         Inches(4.8), Inches(2.4), Inches(3.7), Inches(3.0),
-         size=11, color=RGBColor(0xCC,0xCC,0xCC))
-
-# Objectives
-add_rect(slide, Inches(8.9), Inches(1.5), Inches(4.13), Inches(5.6), RGBColor(0x1C,0x3A,0x2C))
-add_text(slide, "STRATEGIC OBJECTIVES", Inches(9.1), Inches(1.65), Inches(3.8), Inches(0.3),
-         size=10, bold=True, color=ORANGE)
-add_text(slide, "Key Goals",
-         Inches(9.1), Inches(1.97), Inches(3.8), Inches(0.4),
-         size=16, bold=True, color=WHITE)
-tx = slide.shapes.add_textbox(Inches(9.1), Inches(2.4), Inches(3.75), Inches(4.4))
-tx.word_wrap = True; tf = tx.text_frame; tf.word_wrap = True
-for obj in [
-    "Produce 4.8M+ bricks/year — zero firewood",
-    "Scale to 200+ internal employees in 3 years",
-    "Create 8,000+ jobs in the district ecosystem",
-    "Achieve 30–45% annual ROI for investors",
-    "Commission biogas 2nd kiln shaft in 14 months",
-    "Expand to Blantyre, Lilongwe & Mzuzu markets",
-    "Maintain ≥30% female employment — SDG 5",
-    "Full ESG compliance — SDGs 3, 5, 13, 15",
-]:
-    add_para(tf, "✓  " + obj, 10, False, RGBColor(0x90,0xEE,0x90), space_before=5)
-
-# Quote at bottom
-add_rect(slide, Inches(0.3), Inches(7.05), Inches(12.73), Inches(0.38), RGBColor(0x08,0x14,0x0E))
-add_text(slide, '"Civilizations are remembered by what they build. The responsibility of our generation is to build differently."  — Chancy Tausi Tsonga',
-         Inches(0.5), Inches(7.08), Inches(12.4), Inches(0.32),
-         size=9, italic=True, color=ORANGE2, align=PP_ALIGN.CENTER)
-
-
-# ═══════════════════════════════════════════════════════════
-# SLIDE 5 — PRODUCTS
-# ═══════════════════════════════════════════════════════════
-slide = prs.slides.add_slide(BLANK)
-add_rect(slide, 0, 0, W, H, CREAM)
-section_header(slide, "Products & Services", "What We Produce", dark=True)
-
-pw = Inches(4.0)
-ph = Inches(5.5)
-py = Inches(1.55)
-
-for i, (bg, tag, name, cost, price, margin, cap, notes) in enumerate([
-    (FOREST, "CORE PRODUCT",
-     "Ordinary VSK Bricks",
-     "K195/brick", "K300/brick (QS Rate)", "35% · K105/brick",
-     "3,000,000 / year",
-     ["100% firewood-free — fully legal",
-      "Passes Malawi govt compliance",
-      "Suitable for all construction",
-      "Competitive vs cement blocks"]),
-    (CHARCOAL, "PREMIUM PRODUCT",
-     "Face Bricks (Double-Faced)",
-     "K335/brick", "K510–K650/brick (QS)", "34% · K175/brick",
-     "1,800,000 / year",
-     ["Premium surface finish",
-      "Higher absolute margin",
-      "Commercial & residential",
-      "Supports early-phase revenue"]),
-    (FOREST2, "ECO INNOVATION",
-     "Biomass Briquettes",
-     "Agri waste feedstock", "Kiln fuel (self-use)", "Cost elimination",
-     "Self-sufficient on-site",
-     ["Zero firewood replacement",
-      "Made from rice husks & biomass",
-      "Circular economy model",
-      "Community supply chain"]),
+# Stat row
+for i, (num, lbl, sub) in enumerate([
+    ("K450M+",  "Capital Invested",   "Founder + Atmosfair EUR 175K"),
+    ("51",      "Current Staff",      "15 Female · 36 Male"),
+    ("K2.07B",  "Revenue Potential",  "Annual MWK at capacity"),
+    ("8,000+",  "Jobs in 3 Years",    "Direct + ecosystem"),
 ]):
-    x = Inches(0.3 + i * 4.3)
-    add_rect(slide, x, py, pw, ph, bg)
-    add_text(slide, tag, x+Inches(0.18), py+Inches(0.12), pw-Inches(0.3), Inches(0.25),
-             size=8, bold=True, color=ORANGE)
-    add_text(slide, name, x+Inches(0.18), py+Inches(0.35), pw-Inches(0.3), Inches(0.55),
-             size=15, bold=True, color=WHITE)
-    add_rect(slide, x, py+Inches(0.88), pw, Inches(0.04), ORANGE)
+    sx = Inches(0.55 + i * 1.92)
+    T(sl, num,  sx, Inches(3.82), Inches(1.88), Inches(0.5),
+      sz=18, bold=True, color=GREEN)
+    T(sl, lbl,  sx, Inches(4.28), Inches(1.88), Inches(0.24),
+      sz=8.5, bold=True, color=DARK)
+    T(sl, sub,  sx, Inches(4.5),  Inches(1.88), Inches(0.28),
+      sz=7.5, color=LGRAY)
 
-    tx = slide.shapes.add_textbox(x+Inches(0.18), py+Inches(0.97), pw-Inches(0.3), Inches(2.1))
-    tx.word_wrap = True; tf = tx.text_frame; tf.word_wrap = True
-    for lbl, val in [("Production Cost", cost), ("Selling Price", price), ("Margin", margin), ("Capacity", cap)]:
-        p = tf.add_paragraph() if tf.paragraphs[0].runs else tf.paragraphs[0]
-        p.space_before = Pt(4)
-        r = p.add_run(); r.text = lbl + ": "; r.font.size = Pt(9); r.font.bold = True
-        r.font.color.rgb = ORANGE2; r.font.name = "Calibri"
-        r2 = p.add_run(); r2.text = val; r2.font.size = Pt(9)
-        r2.font.color.rgb = WHITE; r2.font.name = "Calibri"
-        tf.add_paragraph()  # spacing
+# Pioneer note
+R(sl, Inches(0.55), Inches(5.1), Inches(7.5), Inches(0.34),
+  RGBColor(0xFF,0xF3,0xE0))
+T(sl, "One of the first black-owned industrial companies in Mulanje District",
+  Inches(0.65), Inches(5.14), Inches(7.3), Inches(0.26),
+  sz=9, bold=True, color=ORANGE)
 
-    add_rect(slide, x+Inches(0.18), py+Inches(3.1), pw-Inches(0.36), Inches(0.03),
-             RGBColor(0x40,0x70,0x50))
-    tx2 = slide.shapes.add_textbox(x+Inches(0.18), py+Inches(3.18), pw-Inches(0.3), Inches(2.1))
-    tx2.word_wrap = True; tf2 = tx2.text_frame; tf2.word_wrap = True
-    for b in notes:
-        p = tf2.add_paragraph()
+# ── Right panel content ──
+T(sl, "Reg. New Vision Anenenji Construction",
+  Inches(8.55), Inches(0.25), Inches(4.5), Inches(0.28),
+  sz=8.5, color=RGBColor(0x90,0xB8,0xA0))
+T(sl, "Reg. No. 46289",
+  Inches(8.55), Inches(0.50), Inches(4.5), Inches(0.24),
+  sz=8.5, color=RGBColor(0x70,0x98,0x80))
+
+R(sl, Inches(8.55), Inches(1.0), Inches(4.5), Inches(0.025),
+  RGBColor(0x40,0x60,0x50))
+
+T(sl, "COMMISSIONING\nCEREMONY",
+  Inches(8.55), Inches(1.1), Inches(4.5), Inches(0.7),
+  sz=11, bold=True, color=ORANGE)
+T(sl, "27 May 2026",
+  Inches(8.55), Inches(1.75), Inches(4.5), Inches(0.7),
+  sz=38, bold=True, color=WHITE)
+T(sl, "Official Factory Opening\nMusewu, Mulanje District",
+  Inches(8.55), Inches(2.42), Inches(4.5), Inches(0.5),
+  sz=11, color=RGBColor(0xCC,0xDD,0xCC))
+
+R(sl, Inches(8.55), Inches(3.1), Inches(4.5), Inches(0.025),
+  RGBColor(0x40,0x60,0x50))
+
+for i, (num, lbl) in enumerate([
+    ("VSK Technology",    "Zero-firewood production"),
+    ("SDGs 3 5 13 15",    "UN sustainability goals"),
+    ("GIZ · Atmosfair",   "International backed"),
+    ("Musewu, Mulanje",   "Community-rooted"),
+]):
+    T(sl, num, Inches(8.55), Inches(3.25 + i*0.72), Inches(4.5), Inches(0.28),
+      sz=11, bold=True, color=WHITE)
+    T(sl, lbl, Inches(8.55), Inches(3.50 + i*0.72), Inches(4.5), Inches(0.25),
+      sz=9, color=RGBColor(0xAA,0xCC,0xBB))
+
+# Bottom bar
+R(sl, 0, H-Inches(0.38), W, Inches(0.38), DARK)
+T(sl, "Charles Billy Nasala (MD)  ·  +265 888 34 75 75  ·  nasalacharles.b@gmail.com  "
+  "·  Chancy Tausi Tsonga (BD)  ·  +265 984 000 366  ·  chancy.tsonga@yahoo.com",
+  Inches(0.5), H-Inches(0.34), Inches(12.33), Inches(0.28),
+  sz=8.5, color=RGBColor(0xAA,0xBB,0xAA), align=PP_ALIGN.CENTER)
+
+
+# ═══════════════════════════════════════════════════════════
+# SLIDE 2 — AGENDA
+# ═══════════════════════════════════════════════════════════
+sl = prs.slides.add_slide(BLANK)
+R(sl, 0, 0, W, H, WHITE)
+section_head(sl, "Presentation Overview", "What We Will Cover Today", 2)
+
+items = [
+    ("01", "Company Background",    "Why NEVAGS exists · the firewood ban · our opportunity"),
+    ("02", "Leadership & Products", "Ownership, registration · VSK bricks · biomass briquettes"),
+    ("03", "Investment & Market",   "Capital base · returns · cost-per-m² comparison"),
+    ("04", "Environment & SDGs",    "Zero firewood · SDG alignment · zero-waste model"),
+    ("05", "Employment Plan",       "51 staff → 8,000+ jobs · community moulding programme"),
+    ("06", "Budget & Partners",     "3-month operational budget · GIZ, Atmosfair & others"),
+    ("07", "Roadmap",               "27 May 2026 commissioning · phased growth to 2029"),
+    ("08", "Partnership Ask",       "What NEVAGS needs from Mulanje District"),
+]
+cols = [items[:4], items[4:]]
+for ci, col in enumerate(cols):
+    x = Inches(0.5 + ci * 6.45)
+    for ri, (num, title, desc) in enumerate(col):
+        y = CONTENT_Y + Inches(ri * 1.25)
+        R(sl, x, y, Inches(6.2), Inches(1.18), CARD)
+        R(sl, x, y, Inches(0.038), Inches(1.18), GREEN)
+        T(sl, num,   x+Inches(0.18), y+Inches(0.1),  Inches(0.5), Inches(0.38),
+          sz=22, bold=True, color=RGBColor(0xD1,0xD5,0xDB))
+        T(sl, title, x+Inches(0.75), y+Inches(0.12), Inches(5.3), Inches(0.35),
+          sz=13, bold=True, color=DARK)
+        T(sl, desc,  x+Inches(0.75), y+Inches(0.50), Inches(5.3), Inches(0.55),
+          sz=9.5, color=GRAY)
+
+
+# ═══════════════════════════════════════════════════════════
+# SLIDE 3 — COMPANY BACKGROUND
+# ═══════════════════════════════════════════════════════════
+sl = prs.slides.add_slide(BLANK)
+R(sl, 0, 0, W, H, WHITE)
+section_head(sl, "Company Background", "Why NEVAGS Exists", 3)
+
+# Two-column layout
+for ci, (bg_c, accent_c, ttl, items) in enumerate([
+    (CARD, GREEN, "THE PROBLEM — MALAWI'S HOUSING & DEFORESTATION CRISIS", [
+        "80–90% of Malawi's housing is built with fired clay bricks",
+        "For decades, bricks were fired using massive quantities of firewood",
+        "Malawi has one of the fastest deforestation rates in Africa",
+        "Soil erosion, flooding and biodiversity loss have accelerated",
+        "",
+        "MALAWI GOVERNMENT BANNED firewood-fired bricks",
+        "Critical supply gap — developers, NGOs and govt need a legal alternative",
+        "Demand is policy-driven, long-term and nationwide",
+    ]),
+    (GREEN, ORANGE, "THE SOLUTION — NEVAGS ECO BRICK & CONSTRUCTION", [
+        "VSK (Vertical Shaft Kiln) technology fuelled by biomass briquettes",
+        "Zero firewood — 100% policy compliant, every day",
+        "High-quality bricks at affordable pricing",
+        "Located in the heart of Mulanje District",
+        "Already employing 51 community members",
+        "Backed by GIZ, Atmosfair & academic research partners",
+        "",
+        '"When we build, let us think that we build forever." — Ruskin',
+    ]),
+]):
+    x = Inches(0.5 + ci * 6.45)
+    R(sl, x, CONTENT_Y, Inches(6.2), Inches(5.45), bg_c)
+    R(sl, x, CONTENT_Y, Inches(0.038), Inches(5.45), accent_c)
+    T(sl, ttl,
+      x+Inches(0.18), CONTENT_Y+Inches(0.12), Inches(5.9), Inches(0.32),
+      sz=9, bold=True, color=ORANGE if ci==0 else AMBER)
+    R(sl, x+Inches(0.18), CONTENT_Y+Inches(0.46), Inches(5.85), Inches(0.018),
+      RGBColor(0xCC,0xCC,0xCC) if ci==0 else RGBColor(0x40,0x70,0x50))
+    bx = sl.shapes.add_textbox(
+        x+Inches(0.18), CONTENT_Y+Inches(0.52), Inches(5.85), Inches(4.7))
+    bx.word_wrap = True; tf = bx.text_frame; tf.word_wrap = True
+    first = True
+    for b in items:
+        if first:
+            p = tf.paragraphs[0]; first = False
+        else:
+            p = tf.add_paragraph()
+        if not b:
+            p.space_before = Pt(6); r = p.add_run(); r.text = ""; r.font.name = F
+            continue
         p.space_before = Pt(5)
-        run = p.add_run(); run.text = "✓  " + b
-        run.font.size = Pt(9); run.font.color.rgb = RGBColor(0xCC,0xEE,0xCC)
-        run.font.name = "Calibri"
-
-# Annual totals bar
-add_rect(slide, Inches(0.3), Inches(7.1), Inches(12.73), Inches(0.35), CHARCOAL)
-add_text(slide,
-         "Annual Revenue: K900M (Ordinary)  +  K1,170M (Face)  =  K2.07 BILLION   ·   Gross Profit: K774M (~$440,000 USD)",
-         Inches(0.5), Inches(7.12), Inches(12.4), Inches(0.3),
-         size=10, bold=True, color=ORANGE2, align=PP_ALIGN.CENTER)
+        r = p.add_run()
+        r.text = b
+        r.font.size = Pt(10)
+        r.font.name = F
+        if ci == 0:
+            r.font.color.rgb = RED if "BANNED" in b else GRAY
+            r.font.bold = "BANNED" in b or "policy-driven" in b
+        else:
+            r.font.color.rgb = WHITE if not b.startswith('"') else AMBER
+            r.font.italic = b.startswith('"')
 
 
 # ═══════════════════════════════════════════════════════════
-# SLIDE 6 — INVESTMENT OVERVIEW
+# SLIDE 4 — LEADERSHIP & OWNERSHIP
 # ═══════════════════════════════════════════════════════════
-slide = prs.slides.add_slide(BLANK)
-add_rect(slide, 0, 0, W, H, CREAM)
-section_header(slide, "Investment Overview", "Capital, Returns & Financial Snapshot", dark=True)
+sl = prs.slides.add_slide(BLANK)
+R(sl, 0, 0, W, H, WHITE)
+section_head(sl, "Company Ownership", "Leadership & Registration", 4)
 
-# Capital base row
-for i, (num, lbl, sub, bg) in enumerate([
-    ("K175M+",  "Founder's Equity",    "Charles Billy Nasala\npersonal investment",          FOREST),
-    ("EUR 175K","Atmosfair Loan",       "2nd Amendment Apr 2026\n5 disbursements",            CHARCOAL),
-    ("K450M+",  "Total Capital Base",  "Founder equity +\ninternational finance",             FOREST2),
-    ("K2.07B",  "Annual Revenue",      "At full production\n(~$1.2M USD)",                   ORANGE),
+# Pioneer banner
+R(sl, Inches(0.5), CONTENT_Y, Inches(12.33), Inches(0.38),
+  RGBColor(0xFF,0xF7,0xED))
+R(sl, Inches(0.5), CONTENT_Y, Inches(0.038), Inches(0.38), ORANGE)
+T(sl, "One of the first black-owned industrial companies in Mulanje District "
+  "— a pioneer enterprise building community ownership",
+  Inches(0.65), CONTENT_Y+Inches(0.06), Inches(12.0), Inches(0.26),
+  sz=9.5, bold=True, color=ORANGE)
+
+# Three person/info cards
+CARD_Y = CONTENT_Y + Inches(0.5)
+CARD_H = Inches(4.85)
+
+for ci, (bg, accent, role, name, lines) in enumerate([
+    (GREEN, ORANGE,
+     "FOUNDER, OWNER & MANAGING DIRECTOR", "Charles Billy Nasala",
+     ["Entrepreneur, industrial innovator & community champion.",
+      "Founder of one of Malawi's first VSK brick enterprises.",
+      "",
+      "T:  +265 888 34 75 75",
+      "T:  +265 99 751 0160",
+      "E:  nasalacharles.b@gmail.com"]),
+    (DARK, ORANGE,
+     "FOUNDING ENGINEER & BD MANAGER", "Chancy Tausi Tsonga",
+     ["VSK technology specialist & strategic partner.",
+      "Leads business development and market expansion.",
+      "",
+      "T:  +265 984 000 366",
+      "WA: +27 764 998 4601",
+      "E:  chancy.tsonga@yahoo.com",
+      "W:  chancytsonga.com"]),
+    (CARD, GREEN,
+     "COMPANY REGISTRATION", "New Vision Anenenji Construction",
+     ["Registration No. 46289",
+      "",
+      "Location",
+      "Musewu, Mulanje District, Southern Malawi",
+      "P.O. Box 90, Mulanje",
+      "",
+      "Careers / HR",
+      "careers.nevags@gmail.com"]),
 ]):
-    x = Inches(0.3 + i * 3.2)
-    stat_box(slide, x, Inches(1.5), Inches(3.0), Inches(1.4),
-             num, lbl, sub, bg if i<3 else ORANGE)
+    x = Inches(0.5 + ci * 4.28)
+    R(sl, x, CARD_Y, Inches(4.1), CARD_H, bg)
+    R(sl, x, CARD_Y, Inches(0.038), CARD_H, accent)
+    T(sl, role,
+      x+Inches(0.18), CARD_Y+Inches(0.14), Inches(3.75), Inches(0.38),
+      sz=8.5, bold=True, color=ORANGE if ci < 2 else ORANGE)
+    name_c = WHITE if ci < 2 else DARK
+    T(sl, name,
+      x+Inches(0.18), CARD_Y+Inches(0.52), Inches(3.75), Inches(0.55),
+      sz=16, bold=True, color=name_c)
+    R(sl, x+Inches(0.18), CARD_Y+Inches(1.08), Inches(3.6), Inches(0.015),
+      RGBColor(0x40,0x65,0x50) if ci < 2 else RGBColor(0xCC,0xCC,0xCC))
+    bx = sl.shapes.add_textbox(
+        x+Inches(0.18), CARD_Y+Inches(1.15), Inches(3.7), Inches(3.5))
+    bx.word_wrap = True; tf = bx.text_frame; tf.word_wrap = True
+    first = True
+    for b in lines:
+        if first: p = tf.paragraphs[0]; first = False
+        else: p = tf.add_paragraph()
+        p.space_before = Pt(4)
+        r = p.add_run(); r.text = b; r.font.name = F
+        if not b:
+            r.font.size = Pt(4); r.font.color.rgb = bg; continue
+        if b.startswith(("T:", "E:", "WA:", "W:")):
+            r.font.size = Pt(9.5)
+            r.font.color.rgb = AMBER if ci < 2 else ORANGE
+        elif b in ("Location", "Careers / HR", "Operational Reach"):
+            r.font.size = Pt(9.5); r.font.bold = True
+            r.font.color.rgb = WHITE if ci < 2 else DARK
+        else:
+            r.font.size = Pt(9.5)
+            r.font.color.rgb = RGBColor(0xCC,0xDD,0xCC) if ci < 2 else GRAY
 
-# ROI boxes
+
+# ═══════════════════════════════════════════════════════════
+# SLIDE 5 — MISSION, VISION & OBJECTIVES
+# ═══════════════════════════════════════════════════════════
+sl = prs.slides.add_slide(BLANK)
+R(sl, 0, 0, W, H, WHITE)
+section_head(sl, "Mission, Vision & Objectives", "Our Strategic Foundation", 5)
+
+COL_Y = CONTENT_Y
+COL_H = Inches(5.42)
+
+for ci, (bg, ttl, sub, body, extras) in enumerate([
+    (GREEN, "MISSION", "What We Do",
+     "To produce high-quality, environmentally compliant bricks using VSK technology "
+     "and biomass briquettes — providing affordable building materials that support "
+     "Malawi's housing sector while protecting forests, creating jobs, and empowering "
+     "communities in Mulanje District and beyond.",
+     []),
+    (DARK, "VISION", "Where We Are Going",
+     "To build a scalable ecosystem for sustainable, affordable, and climate-resilient "
+     "housing across Malawi and Southern Africa — positioning NEVAGS as the benchmark "
+     "for eco-industrial construction innovation on the African continent.",
+     []),
+    (CARD, "OBJECTIVES", "Key Goals",
+     "",
+     ["Produce 4.8M+ bricks/year — zero firewood",
+      "Scale to 200+ internal employees in 3 years",
+      "Create 8,000+ jobs in the district ecosystem",
+      "Achieve 30–45% annual ROI for investors",
+      "Commission biogas 2nd kiln shaft in 14 months",
+      "Expand to Blantyre, Lilongwe & Mzuzu markets",
+      "Maintain ≥30% female employment — SDG 5",
+      "Full ESG compliance — SDGs 3, 5, 13, 15"]),
+]):
+    x = Inches(0.5 + ci * 4.28)
+    R(sl, x, COL_Y, Inches(4.1), COL_H, bg)
+    R(sl, x, COL_Y, Inches(0.038), COL_H, ORANGE)
+    T(sl, ttl,
+      x+Inches(0.18), COL_Y+Inches(0.15), Inches(3.75), Inches(0.3),
+      sz=9, bold=True, color=ORANGE)
+    name_c = WHITE if ci < 2 else DARK
+    T(sl, sub,
+      x+Inches(0.18), COL_Y+Inches(0.45), Inches(3.75), Inches(0.42),
+      sz=17, bold=True, color=name_c)
+    R(sl, x+Inches(0.18), COL_Y+Inches(0.88), Inches(3.6), Inches(0.018),
+      RGBColor(0x40,0x65,0x50) if ci < 2 else RGBColor(0xCC,0xCC,0xCC))
+    if body:
+        T(sl, body,
+          x+Inches(0.18), COL_Y+Inches(1.0), Inches(3.75), Inches(4.1),
+          sz=11, color=RGBColor(0xCC,0xEE,0xDD) if ci < 2 else GRAY)
+    else:
+        bx = sl.shapes.add_textbox(
+            x+Inches(0.18), COL_Y+Inches(1.0), Inches(3.75), Inches(4.2))
+        bx.word_wrap = True; tf = bx.text_frame; tf.word_wrap = True
+        first = True
+        for b in extras:
+            if first: p = tf.paragraphs[0]; first = False
+            else: p = tf.add_paragraph()
+            p.space_before = Pt(6)
+            r = p.add_run(); r.text = "  " + b
+            r.font.size = Pt(10.5); r.font.color.rgb = GRAY; r.font.name = F
+
+# Quote strip
+R(sl, 0, H-Inches(0.48), W, Inches(0.48), DARK)
+T(sl, '"Civilisations are remembered by what they build. '
+  'The responsibility of our generation is to build differently."  — Chancy Tausi Tsonga',
+  Inches(0.5), H-Inches(0.43), Inches(12.33), Inches(0.35),
+  sz=9.5, italic=True, color=AMBER, align=PP_ALIGN.CENTER)
+
+
+# ═══════════════════════════════════════════════════════════
+# SLIDE 6 — PRODUCTS
+# ═══════════════════════════════════════════════════════════
+sl = prs.slides.add_slide(BLANK)
+R(sl, 0, 0, W, H, WHITE)
+section_head(sl, "Products & Services", "What We Produce", 6)
+
+for ci, (bg, accent, tag, name, details, notes) in enumerate([
+    (GREEN, ORANGE, "CORE PRODUCT",
+     "Ordinary VSK Bricks",
+     [("Production Cost", "K195 / brick"),
+      ("QS Selling Price", "K300 / brick"),
+      ("Gross Margin", "35%  ·  K105 / brick"),
+      ("Annual Capacity", "3,000,000 bricks"),
+      ("Annual Revenue",  "K900,000,000")],
+     ["100% firewood-free — policy compliant",
+      "Passes all Malawi govt standards",
+      "Suitable for all construction types",
+      "Competitive vs cement blocks"]),
+    (DARK, ORANGE, "PREMIUM PRODUCT",
+     "Face Bricks (Double-Faced)",
+     [("Production Cost", "K335 / brick"),
+      ("QS Selling Price", "K510–K650 / brick"),
+      ("Gross Margin",    "34%  ·  K175 / brick"),
+      ("Annual Capacity", "1,800,000 bricks"),
+      ("Annual Revenue",  "K1,170,000,000")],
+     ["Premium surface finish, no plastering",
+      "Higher absolute margin per brick",
+      "Commercial & high-end residential",
+      "Supports early-phase revenue"]),
+    (CARD, GREEN, "ECO INNOVATION",
+     "Biomass Briquettes",
+     [("Feedstock",      "Rice husks & agri waste"),
+      ("Use",            "VSK kiln fuel (self-supply)"),
+      ("Benefit",        "Replaces all firewood"),
+      ("Community role", "Farmers paid per kg supply"),
+      ("Future",         "Biogas 2nd shaft in 14 months")],
+     ["Zero firewood — circular economy",
+      "Turns farm waste into clean energy",
+      "Community biomass supply chain",
+      "Positions NEVAGS as biogas pioneer"]),
+]):
+    x = Inches(0.5 + ci * 4.28)
+    H2 = Inches(5.42)
+    R(sl, x, CONTENT_Y, Inches(4.1), H2, bg)
+    R(sl, x, CONTENT_Y, Inches(0.038), H2, accent)
+    T(sl, tag,
+      x+Inches(0.18), CONTENT_Y+Inches(0.12), Inches(3.75), Inches(0.26),
+      sz=8, bold=True, color=ORANGE)
+    nc = WHITE if ci < 2 else DARK
+    T(sl, name,
+      x+Inches(0.18), CONTENT_Y+Inches(0.38), Inches(3.75), Inches(0.45),
+      sz=16, bold=True, color=nc)
+    R(sl, x+Inches(0.18), CONTENT_Y+Inches(0.84), Inches(3.6), Inches(0.018),
+      RGBColor(0x40,0x65,0x50) if ci<2 else RGBColor(0xCC,0xCC,0xCC))
+    dy = CONTENT_Y + Inches(0.92)
+    for lbl, val in details:
+        bx = sl.shapes.add_textbox(x+Inches(0.18), dy, Inches(3.7), Inches(0.32))
+        bx.word_wrap = True; p = bx.text_frame.paragraphs[0]
+        r1 = p.add_run(); r1.text = lbl + ":  "; r1.font.size = Pt(9)
+        r1.font.bold = True
+        r1.font.color.rgb = AMBER if ci < 2 else ORANGE; r1.font.name = F
+        r2 = p.add_run(); r2.text = val; r2.font.size = Pt(9)
+        r2.font.color.rgb = WHITE if ci < 2 else GRAY; r2.font.name = F
+        dy += Inches(0.28)
+    R(sl, x+Inches(0.18), dy, Inches(3.6), Inches(0.015),
+      RGBColor(0x40,0x65,0x50) if ci < 2 else RGBColor(0xCC,0xCC,0xCC))
+    dy += Inches(0.12)
+    for b in notes:
+        bx2 = sl.shapes.add_textbox(x+Inches(0.18), dy, Inches(3.7), Inches(0.28))
+        p2 = bx2.text_frame.paragraphs[0]
+        r = p2.add_run(); r.text = b; r.font.size = Pt(9)
+        r.font.color.rgb = RGBColor(0xCC,0xEE,0xCC) if ci<2 else GRAY
+        r.font.name = F; dy += Inches(0.28)
+
+footer_bar(sl,
+    "Annual Revenue: K900M (Ordinary)  +  K1,170M (Face Bricks)  =  K2.07 BILLION  "
+    "·  Gross Profit: ~K774M (~USD 440,000)")
+
+
+# ═══════════════════════════════════════════════════════════
+# SLIDE 7 — INVESTMENT OVERVIEW
+# ═══════════════════════════════════════════════════════════
+sl = prs.slides.add_slide(BLANK)
+R(sl, 0, 0, W, H, WHITE)
+section_head(sl, "Investment Overview", "Capital Base, Returns & Financial Snapshot", 7)
+
+# Capital stat row
+for i, (num, lbl, sub, bg) in enumerate([
+    ("K175M+",  "Founder's Equity",   "Charles Billy Nasala",   GREEN),
+    ("EUR 175K","Atmosfair Loan",     "2nd Amendment, Apr 2026", DARK),
+    ("K450M+",  "Total Capital",      "Founder + intl finance",  GREEN2),
+    ("K2.07B",  "Revenue Potential",  "Annual MWK at capacity",  ORANGE),
+]):
+    stat_card(sl, Inches(0.5 + i*3.2), CONTENT_Y, Inches(3.05), Inches(1.4),
+              num, lbl, sub, num_color=WHITE if i < 3 else WHITE, bg=bg)
+
+# ROI row
 for i, (num, lbl, body) in enumerate([
     ("30–45%", "Annual ROI Potential",
-     "Based on full capacity, QS pricing & existing infrastructure. Policy-driven demand = long-term revenue."),
-    ("3–5 yrs", "Payback Period",
-     "Conservative payback on total investment. Expansion financing accelerates this significantly."),
-    ("$2.5M+", "Revenue in 3 Years",
-     "With expansion financing, revenue exceeds $2.5M USD within 3 years of scaled operations."),
-    ("K774M", "Annual Gross Profit",
-     "Annual gross profit at full production. (~$440,000 USD). Grows with biogas kiln addition."),
+     "Based on full capacity at QS pricing. Policy-driven demand = long-term revenue."),
+    ("3–5 yrs", "Investment Payback",
+     "Conservative payback on total K450M+ investment. Expansion finance accelerates this."),
+    ("$2.5M+", "Revenue — Year 3",
+     "With scaled operations, revenue exceeds $2.5M USD within 3 years."),
+    ("K774M",  "Annual Gross Profit",
+     "~$440,000 USD annual gross profit at full production capacity."),
 ]):
-    x = Inches(0.3 + i * 3.2)
-    add_rect(slide, x, Inches(3.1), Inches(3.0), Inches(1.6), WHITE)
-    add_text(slide, num, x+Inches(0.15), Inches(3.18), Inches(2.7), Inches(0.55),
-             size=24, bold=True, color=FOREST, align=PP_ALIGN.CENTER)
-    add_text(slide, lbl, x+Inches(0.15), Inches(3.7), Inches(2.7), Inches(0.25),
-             size=9, bold=True, color=ORANGE, align=PP_ALIGN.CENTER)
-    add_text(slide, body, x+Inches(0.12), Inches(3.96), Inches(2.76), Inches(0.68),
-             size=8, color=DGRAY, align=PP_ALIGN.CENTER)
+    x = Inches(0.5 + i*3.2)
+    R(sl, x, CONTENT_Y+Inches(1.52), Inches(3.05), Inches(1.58), CARD)
+    T(sl, num, x+Inches(0.18), CONTENT_Y+Inches(1.6),
+      Inches(2.7), Inches(0.55), sz=24, bold=True, color=GREEN)
+    T(sl, lbl, x+Inches(0.18), CONTENT_Y+Inches(2.12),
+      Inches(2.7), Inches(0.26), sz=9.5, bold=True, color=DARK)
+    T(sl, body, x+Inches(0.18), CONTENT_Y+Inches(2.38),
+      Inches(2.7), Inches(0.65), sz=8.5, color=GRAY)
 
 # Revenue table
-add_text(slide, "Annual Revenue & Profit Breakdown",
-         Inches(0.3), Inches(4.85), Inches(8), Inches(0.3),
-         size=12, bold=True, color=CHARCOAL)
-add_table(slide, Inches(0.3), Inches(5.15), Inches(12.73), 4, 5,
-    [
-        ["Product",             "Capacity",         "Production Cost", "Selling Price (QS)", "Annual Revenue"],
-        ["Ordinary VSK Bricks", "3,000,000 / year", "K195 / brick",   "K300 / brick",       "K900,000,000"],
-        ["Face Bricks (Premium)","1,800,000 / year","K335 / brick",   "K510–K650 / brick",  "K1,170,000,000"],
-        ["TOTAL",               "4,800,000 / year", "—",              "—",                  "K2,070,000,000"],
-    ],
-    col_widths=[Inches(2.6), Inches(2.2), Inches(2.0), Inches(2.5), Inches(3.43)],
-    header_bg=FOREST)
+T(sl, "Annual Revenue & Profit Breakdown",
+  Inches(0.5), CONTENT_Y+Inches(3.22), Inches(8), Inches(0.3),
+  sz=12, bold=True, color=DARK)
+table(sl, Inches(0.5), CONTENT_Y+Inches(3.55), Inches(12.33), 4, 5,
+    [["Product",              "Capacity",          "Prod. Cost",    "QS Price",       "Annual Revenue"],
+     ["Ordinary VSK Bricks",  "3,000,000 / year",  "K195 / brick",  "K300 / brick",   "K900,000,000"],
+     ["Face Bricks (Premium)","1,800,000 / year",  "K335 / brick",  "K510–K650/brick","K1,170,000,000"],
+     ["TOTAL",                "4,800,000 / year",  "—",             "—",              "K2,070,000,000"]],
+    cw=[Inches(2.8), Inches(2.2), Inches(1.95), Inches(2.2), Inches(3.18)])
 
 
 # ═══════════════════════════════════════════════════════════
-# SLIDE 7 — MARKET COMPARISON
+# SLIDE 8 — MARKET COMPARISON
 # ═══════════════════════════════════════════════════════════
-slide = prs.slides.add_slide(BLANK)
-add_rect(slide, 0, 0, W, H, CREAM)
-section_header(slide, "Pricing & Market Position", "Cost per m² of Wall — NEVAGS vs Alternatives", dark=True)
+sl = prs.slides.add_slide(BLANK)
+R(sl, 0, 0, W, H, WHITE)
+section_head(sl, "Pricing & Market Position",
+             "Cost per m² of Wall — NEVAGS vs Alternatives", 8)
 
-add_text(slide, "A standard half-brick wall (1m²) requires ~59 standard bricks or ~12 cement blocks. This is how NEVAGS compares:",
-         Inches(0.3), Inches(1.42), Inches(12.73), Inches(0.28),
-         size=10, italic=True, color=DGRAY)
+T(sl, "A standard half-brick wall (1 m²) requires 59 standard bricks or 12 cement blocks.",
+  Inches(0.5), Inches(1.82), Inches(12.33), Inches(0.26),
+  sz=10, italic=True, color=LGRAY)
 
-# Bar chart simulation using rectangles
-bar_y = Inches(2.0)
-bar_max_w = Inches(7.5)
-for i, (label, cost, pct, bg, note) in enumerate([
-    ("Cement Blocks\n(12 blocks × K3,000)", "K36,000/m²", 1.0,   RGBColor(0xDC,0x26,0x26),
-     "Expensive. Requires extra mortar, rebar & skilled labour. High transport cost to Mulanje."),
-    ("NEVAGS VSK Bricks\n(59 bricks × K300)",  "K17,700/m²", 0.492, FOREST,
-     "✓ LEGAL  ✓ LOCAL  ✓ AFFORDABLE — 51% cheaper than cement. Policy compliant. Eligible for all govt projects."),
-    ("Traditional Firewood Bricks\n(NOW ILLEGAL)", "K8,850/m²", 0.246, RGBColor(0xCA,0x8A,0x04),
-     "⚠ BANNED BY MALAWI GOVERNMENT. Using these bricks = illegal. Not eligible for any formal construction project."),
+BAR_MAX = Inches(7.2)
+for i, (label, cost_str, pct, bg, note) in enumerate([
+    ("Cement Blocks\n(12 blocks × K3,000)",
+     "K36,000 / m²", 1.0, RGBColor(0xDC,0x26,0x26),
+     "Most expensive option. Requires extra mortar, rebar and skilled labour. "
+     "High transport cost to Mulanje District."),
+    ("NEVAGS VSK Bricks\n(59 bricks × K300)",
+     "K17,700 / m²", 0.492, GREEN,
+     "LEGAL  ·  LOCAL  ·  AFFORDABLE — 51% cheaper than cement. "
+     "Policy compliant. Eligible for all government and NGO projects."),
+    ("Traditional Firewood Bricks\n(BANNED BY GOVERNMENT)",
+     "K8,850 / m²", 0.246, RGBColor(0xCA,0x8A,0x04),
+     "BANNED by Malawi Government. Using these bricks is illegal. "
+     "Not eligible for any formal or government-funded construction project."),
 ]):
-    y = bar_y + Inches(i * 1.55)
-    add_text(slide, label, Inches(0.3), y, Inches(3.2), Inches(0.6),
-             size=10, bold=True, color=CHARCOAL)
-    bw = bar_max_w * pct
-    add_rect(slide, Inches(3.6), y + Inches(0.05), bw, Inches(0.45), bg)
-    add_text(slide, cost, Inches(3.6) + bw + Inches(0.1), y + Inches(0.08),
-             Inches(1.5), Inches(0.35), size=12, bold=True, color=CHARCOAL)
-    add_text(slide, note, Inches(0.3), y + Inches(0.65), Inches(12.73), Inches(0.6),
-             size=9, color=DGRAY)
+    y = CONTENT_Y + Inches(0.1) + Inches(i * 1.65)
+    T(sl, label, Inches(0.5), y, Inches(3.1), Inches(0.6),
+      sz=10, bold=True, color=DARK)
+    bw = BAR_MAX * pct
+    R(sl, Inches(3.7), y+Inches(0.06), bw, Inches(0.44), bg)
+    T(sl, cost_str, Inches(3.7)+bw+Inches(0.12), y+Inches(0.1),
+      Inches(1.8), Inches(0.35), sz=12, bold=True, color=DARK)
+    T(sl, note, Inches(0.5), y+Inches(0.68), Inches(12.33), Inches(0.55),
+      sz=8.5, color=GRAY)
 
-# Conclusion
-add_rect(slide, Inches(0.3), Inches(6.85), Inches(12.73), Inches(0.52), CHARCOAL)
-add_text(slide,
-         "NEVAGS IS 51% CHEAPER THAN CEMENT BLOCKS — The only legal, affordable, locally-produced alternative in Mulanje District",
-         Inches(0.5), Inches(6.9), Inches(12.4), Inches(0.42),
-         size=12, bold=True, color=ORANGE2, align=PP_ALIGN.CENTER)
+R(sl, Inches(0.5), H-Inches(0.52), Inches(12.33), Inches(0.48), GREEN)
+T(sl, "NEVAGS IS 51% CHEAPER THAN CEMENT BLOCKS  ·  "
+  "The only legal, affordable, locally produced alternative in Mulanje District",
+  Inches(0.7), H-Inches(0.48), Inches(11.9), Inches(0.40),
+  sz=12, bold=True, color=WHITE, align=PP_ALIGN.CENTER)
 
 
 # ═══════════════════════════════════════════════════════════
-# SLIDE 8 — ENVIRONMENTAL IMPACT & SDGs
+# SLIDE 9 — ENVIRONMENT & SDGs
 # ═══════════════════════════════════════════════════════════
-slide = prs.slides.add_slide(BLANK)
-add_rect(slide, 0, 0, W, H, RGBColor(0x0A, 0x18, 0x0F))
-section_header(slide, "Environmental & Social Impact", "Built for a Sustainable Malawi", dark=False)
+sl = prs.slides.add_slide(BLANK)
+R(sl, 0, 0, W, H, WHITE)
+section_head(sl, "Environmental & Social Impact", "Built for a Sustainable Malawi", 9)
 
-# SDG cards
-sdg_data = [
-    (RGBColor(0x4C,0x9F,0x38), "SDG 3", "Good Health\n& Well-Being",
-     ["Safety compliance ≥95%", "PPE for all 51 workers", "Reduced air pollution", "Community health protection"]),
-    (RGBColor(0xBF,0x0D,0x0D), "SDG 5", "Gender\nEquality",
-     ["15 female employees (29%)", "Equal pay policy", "Female leadership roles", "Target: ≥30% women"]),
-    (RGBColor(0x3F,0x7E,0x44), "SDG 13", "Climate\nAction",
-     ["Zero firewood in production", "Biomass briquette fuel", "Carbon emission reduction", "Forest preservation"]),
-    (RGBColor(0x56,0xC0,0x2B), "SDG 15", "Life\non Land",
-     ["Zero deforestation impact", "Protects Mulanje Massif", "Biodiversity preservation", "Water catchment protection"]),
+SDG_DATA = [
+    (RGBColor(0x4C,0x9F,0x38), "SDG 3",
+     "Good Health & Well-Being",
+     ["Worker safety compliance ≥95%",
+      "PPE provided for all 51 workers",
+      "Reduced air & dust pollution",
+      "Community health protection"]),
+    (RGBColor(0xBF,0x0D,0x0D), "SDG 5",
+     "Gender Equality",
+     ["15 female employees (29%)",
+      "Equal pay policy — no exceptions",
+      "Female leadership roles",
+      "Target: ≥30% women by Phase 3"]),
+    (RGBColor(0x3F,0x7E,0x44), "SDG 13",
+     "Climate Action",
+     ["Zero firewood in all production",
+      "Biomass briquette fuel only",
+      "Carbon emission reduction",
+      "Supports national climate targets"]),
+    (RGBColor(0x56,0xC0,0x2B), "SDG 15",
+     "Life on Land",
+     ["Zero deforestation impact",
+      "Protects the Mulanje Massif",
+      "Biodiversity preservation",
+      "Water catchment protection"]),
 ]
-sw = Inches(2.95)
-for i, (color, sdg, title, points) in enumerate(sdg_data):
-    x = Inches(0.3 + i * 3.25)
-    add_rect(slide, x, Inches(1.55), sw, Inches(0.7), color)
-    add_text(slide, sdg, x+Inches(0.15), Inches(1.6), sw-Inches(0.3), Inches(0.28),
-             size=18, bold=True, color=WHITE)
-    add_text(slide, title, x+Inches(0.15), Inches(1.88), sw-Inches(0.3), Inches(0.38),
-             size=10, color=WHITE)
-    add_rect(slide, x, Inches(2.25), sw, Inches(4.0), RGBColor(0x15,0x30,0x1E))
-    tx = slide.shapes.add_textbox(x+Inches(0.15), Inches(2.32), sw-Inches(0.25), Inches(3.85))
-    tx.word_wrap = True; tf = tx.text_frame; tf.word_wrap = True
-    for p in points:
-        add_para(tf, "✓  " + p, 10, False, RGBColor(0x90,0xEE,0x90), space_before=8)
+SW = Inches(2.9)
+for i, (color, sdg, title, points) in enumerate(SDG_DATA):
+    x = Inches(0.5 + i * 3.1)
+    R(sl, x, CONTENT_Y, SW, Inches(0.7), color)
+    T(sl, sdg, x+Inches(0.15), CONTENT_Y+Inches(0.08),
+      SW-Inches(0.3), Inches(0.3), sz=20, bold=True, color=WHITE)
+    T(sl, title, x+Inches(0.15), CONTENT_Y+Inches(0.38),
+      SW-Inches(0.3), Inches(0.3), sz=9.5, color=WHITE)
+    R(sl, x, CONTENT_Y+Inches(0.7), SW, Inches(3.72), CARD)
+    bx = sl.shapes.add_textbox(
+        x+Inches(0.15), CONTENT_Y+Inches(0.82), SW-Inches(0.2), Inches(3.5))
+    bx.word_wrap = True; tf = bx.text_frame; tf.word_wrap = True
+    first = True
+    for pt in points:
+        if first: p = tf.paragraphs[0]; first = False
+        else: p = tf.add_paragraph()
+        p.space_before = Pt(8)
+        r = p.add_run(); r.text = pt
+        r.font.size = Pt(10.5); r.font.color.rgb = GRAY; r.font.name = F
 
 # Zero waste strip
-add_rect(slide, Inches(0.3), Inches(6.35), Inches(12.73), Inches(1.05), RGBColor(0x1B,0x43,0x32))
-add_text(slide, "ZERO WASTE MODEL",
-         Inches(0.5), Inches(6.4), Inches(12.4), Inches(0.25),
-         size=9, bold=True, color=ORANGE)
-add_text(slide,
-         "Production dust & clay → recovered  ·  Agricultural biomass → briquette fuel  ·  Organic waste → Biogas (2nd kiln, 14 months)  ·  Kiln ash → soil amendment",
-         Inches(0.5), Inches(6.65), Inches(12.4), Inches(0.68),
-         size=11, color=RGBColor(0xCC,0xEE,0xCC), align=PP_ALIGN.CENTER)
+R(sl, Inches(0.5), CONTENT_Y+Inches(4.58), Inches(12.33), Inches(0.78), GREEN)
+T(sl, "ZERO-WASTE CIRCULAR MODEL",
+  Inches(0.7), CONTENT_Y+Inches(4.62), Inches(12), Inches(0.26),
+  sz=9, bold=True, color=ORANGE)
+T(sl, "Dust & clay waste → recovered and reused  "
+  "·  Agricultural biomass → briquette kiln fuel  "
+  "·  Organic waste → Biogas (2nd kiln, 14 months)  "
+  "·  Kiln ash → soil amendment",
+  Inches(0.7), CONTENT_Y+Inches(4.88), Inches(12), Inches(0.42),
+  sz=11, color=RGBColor(0xCC,0xEE,0xCC), align=PP_ALIGN.CENTER)
 
 
 # ═══════════════════════════════════════════════════════════
-# SLIDE 9 — EMPLOYMENT & JOB CREATION
+# SLIDE 10 — EMPLOYMENT & JOB CREATION
 # ═══════════════════════════════════════════════════════════
-slide = prs.slides.add_slide(BLANK)
-add_rect(slide, 0, 0, W, H, CREAM)
-section_header(slide, "Employment & Job Creation", "51 Jobs Today. 8,000+ in 3 Years.", dark=True)
+sl = prs.slides.add_slide(BLANK)
+R(sl, 0, 0, W, H, WHITE)
+section_head(sl, "Employment & Job Creation", "51 Jobs Today. 8,000+ in 3 Years.", 10)
 
-# Big numbers
-for i, (num, lbl, sub, bg) in enumerate([
-    ("51",     "Current Employees",    "15 Female (29%) · 36 Male (71%)", FOREST),
-    ("200+",   "Internal Jobs (3 yrs)","All departments incl.\nMech. Engineering & Maintenance", CHARCOAL),
-    ("5,000+", "Community Moulders",   "Trained & buying from them;\nNEVAGS fires in VSK kiln",  FOREST2),
-    ("2,500+", "Biomass Suppliers",    "Rice husks & agri waste\nbuyers from community",         ORANGE),
+# Four stat cards
+for i, (num, lbl, sub, bg, nc) in enumerate([
+    ("51",     "Current Employees", "15 Female · 36 Male",                GREEN, WHITE),
+    ("200+",   "Internal Jobs",     "3-year target, all departments",     DARK,  WHITE),
+    ("5,000+", "Community Moulders","Trained green-brick producers",      GREEN2,WHITE),
+    ("2,500+", "Biomass Suppliers", "Rice husks & agri waste providers",  ORANGE,WHITE),
 ]):
-    x = Inches(0.3 + i * 3.2)
-    stat_box(slide, x, Inches(1.5), Inches(3.0), Inches(1.45), num, lbl, sub, bg)
+    stat_card(sl, Inches(0.5+i*3.2), CONTENT_Y, Inches(3.05), Inches(1.4),
+              num, lbl, sub, num_color=nc, bg=bg)
 
-# Community model
-add_text(slide, "The NEVAGS Job Creation Ecosystem",
-         Inches(0.3), Inches(3.1), Inches(12), Inches(0.3),
-         size=13, bold=True, color=CHARCOAL)
-
-for i, (title, body, bg) in enumerate([
+# Three ecosystem cards
+for i, (ttl, body, accent) in enumerate([
     ("Community Brick Moulding Programme",
-     "NEVAGS trains community members in standard VSK-quality brick moulding. They produce green bricks locally — NEVAGS buys directly from them and fires in our kiln. Self-employment at community scale.",
-     WHITE),
+     "NEVAGS trains community members to produce VSK-quality green bricks at local level. "
+     "We purchase directly from them and fire in our kiln. "
+     "This creates genuine self-employment at community scale — no middleman.",
+     GREEN),
     ("Biomass & Rice Husk Supply Chain",
-     "We purchase rice husks, maize cobs, and agricultural biomass from community farmers. Farm waste becomes clean energy income — turning zero-value materials into a new rural revenue stream.",
-     RGBColor(0xFE,0xF9,0xEE)),
+     "We purchase rice husks, maize cobs and agricultural biomass from community farmers. "
+     "Farm waste becomes clean energy income — turning zero-value materials into a "
+     "predictable new rural revenue stream for Mulanje's agricultural sector.",
+     ORANGE),
     ("Internal Growth — All Departments",
-     "Beyond operations, NEVAGS scales across Sales, HR, Admin, Finance, and a dedicated Mechanical Engineering & Maintenance department. 200+ formal, permanent jobs within 3 years.",
-     WHITE),
+     "Beyond operations, NEVAGS scales across Sales, HR, Finance, Admin and a dedicated "
+     "Mechanical Engineering & Maintenance department. "
+     "200+ formal, permanent jobs within 3 years — above minimum wage, no exceptions.",
+     GREEN2),
 ]):
-    x = Inches(0.3 + i * 4.3)
-    add_rect(slide, x, Inches(3.5), Inches(4.1), Inches(3.42), bg)
-    add_rect(slide, x, Inches(3.5), Inches(4.1), Inches(0.06), ORANGE)
-    add_text(slide, title, x+Inches(0.15), Inches(3.58), Inches(3.85), Inches(0.4),
-             size=11, bold=True, color=FOREST)
-    add_text(slide, body, x+Inches(0.15), Inches(4.02), Inches(3.85), Inches(2.7),
-             size=10, color=DGRAY)
+    x = Inches(0.5 + i * 4.28)
+    R(sl, x, CONTENT_Y+Inches(1.55), Inches(4.1), Inches(3.55), CARD)
+    R(sl, x, CONTENT_Y+Inches(1.55), Inches(0.038), Inches(3.55), accent)
+    T(sl, ttl,
+      x+Inches(0.18), CONTENT_Y+Inches(1.68), Inches(3.8), Inches(0.38),
+      sz=11, bold=True, color=DARK)
+    T(sl, body,
+      x+Inches(0.18), CONTENT_Y+Inches(2.1), Inches(3.8), Inches(2.8),
+      sz=10, color=GRAY)
 
-# Gender bar at bottom
-add_rect(slide, Inches(0.3), Inches(7.0), Inches(12.73), Inches(0.42), CHARCOAL)
-# Visual gender bar
-add_rect(slide, Inches(0.5), Inches(7.08), Inches(8.5), Inches(0.25), FOREST)  # Male 71%
-add_rect(slide, Inches(9.0), Inches(7.08), Inches(3.73), Inches(0.25), ORANGE)  # Female 29%
-add_text(slide, "Male 71% (36)",  Inches(0.5), Inches(7.0), Inches(2.5), Inches(0.22), size=8, bold=True, color=WHITE)
-add_text(slide, "Female 29% (15) — SDG 5 · Target ≥30%", Inches(9.05), Inches(7.0), Inches(3.9), Inches(0.22), size=8, bold=True, color=ORANGE2)
+# Gender bar
+R(sl, Inches(0.5), H-Inches(0.45), Inches(12.33), Inches(0.38), DARK)
+R(sl, Inches(0.62), H-Inches(0.36), Inches(8.48), Inches(0.2), GREEN)
+R(sl, Inches(9.1),  H-Inches(0.36), Inches(3.55), Inches(0.2), ORANGE)
+T(sl, "Male  71%  (36 staff)",
+  Inches(0.7), H-Inches(0.43), Inches(3.5), Inches(0.22),
+  sz=8, bold=True, color=WHITE)
+T(sl, "Female  29%  (15 staff)  —  SDG 5  ·  Target ≥30% by Phase 3",
+  Inches(8.8), H-Inches(0.43), Inches(4.2), Inches(0.22),
+  sz=8, bold=True, color=AMBER)
 
 
 # ═══════════════════════════════════════════════════════════
-# SLIDE 10 — WORKFORCE PLAN
+# SLIDE 11 — WORKFORCE PLAN
 # ═══════════════════════════════════════════════════════════
-slide = prs.slides.add_slide(BLANK)
-add_rect(slide, 0, 0, W, H, CREAM)
-section_header(slide, "Workforce Plan", "KPI-Driven Phased Scaling — Apr to Jul 2026", dark=True)
+sl = prs.slides.add_slide(BLANK)
+R(sl, 0, 0, W, H, WHITE)
+section_head(sl, "Workforce Plan", "KPI-Driven Phased Scaling — Apr to Jul 2026", 11)
 
-add_table(slide, Inches(0.3), Inches(1.5), Inches(12.73), 6, 5,
-    [
-        ["Phase",         "Period",           "Staff on Site", "Daily Output Target",   "Key KPIs"],
-        ["Startup",       "Wk 1–2 (Apr 6–19)","18 staff",     "Site commissioning",    "Safety ≥95% · Downtime <10%"],
-        ["Phase 1",       "Wk 3–4 (Apr–May)", "33 staff",     "≥3,000 bricks/day",     "Output ≥3,000/day · Cost ≤K195/brick"],
-        ["Phase 2",       "Wk 5–8 (May)",     "39–40 staff",  "≥5,000 bricks/day",     "Kiln Util >80% · Orders >50,000/wk"],
-        ["Phase 3 / Full","Wk 9–13 (Jun–Jul)","45 staff",     "≥7,000 bricks/day",     "Active Clients ≥5 · Full shift ops"],
-        ["Expansion",     "2026–2029",         "200+ internal","Doubled capacity",       "8,000+ ecosystem jobs · Biogas kiln"],
-    ],
-    col_widths=[Inches(1.6), Inches(2.4), Inches(1.9), Inches(2.9), Inches(3.93)],
-    header_bg=FOREST)
+table(sl, Inches(0.5), CONTENT_Y, Inches(12.33), 6, 5,
+    [["Phase",              "Period",           "Staff",            "Daily Output Target",    "Key KPIs"],
+     ["Startup",            "Wk 1–2  Apr 6–19", "18 staff",         "Site commissioning",     "Safety ≥95%  ·  Downtime <10%"],
+     ["Phase 1",            "Wk 3–4  Apr–May",  "33 staff",         "≥3,000 bricks/day",  "Output ≥3,000/day  ·  Cost ≤K195/brick"],
+     ["Phase 2",            "Wk 5–8  May",      "39–40 staff",      "≥5,000 bricks/day",  "Kiln util >80%  ·  Orders >50,000/wk"],
+     ["Phase 3 (Full)",     "Wk 9–13  Jun–Jul", "45 staff",         "≥7,000 bricks/day",  "Active clients ≥5  ·  Double-shift"],
+     ["Expansion",          "2026–2029",         "200+ internal",    "Doubled capacity",       "8,000+ ecosystem jobs  ·  Biogas kiln"]],
+    cw=[Inches(1.7), Inches(2.2), Inches(1.65), Inches(3.0), Inches(3.78)])
 
-add_text(slide, "Compensation Philosophy",
-         Inches(0.3), Inches(4.85), Inches(12), Inches(0.3),
-         size=12, bold=True, color=CHARCOAL)
+T(sl, "Compensation Philosophy",
+  Inches(0.5), CONTENT_Y+Inches(2.65), Inches(12), Inches(0.3),
+  sz=12, bold=True, color=DARK)
 
-for i, (title, body, bg) in enumerate([
+for i, (ttl, body, bg) in enumerate([
     ("Senior & Management Staff",
-     "Competitive market-rate remuneration — above-market base salaries reflecting expertise and business contribution",
-     FOREST),
+     "Competitive market-rate remuneration — "
+     "above-market base salaries reflecting expertise and business contribution.",
+     GREEN),
     ("General Workers & Supervisors",
-     "Above statutory minimum wage — no exceptions. Stable, year-round income with career progression tied to KPI performance",
-     CHARCOAL),
+     "Above statutory minimum wage — no exceptions. Stable year-round income "
+     "with career progression tied directly to measurable KPI performance.",
+     DARK),
     ("Community Moulders & Biomass Suppliers",
-     "Direct purchase payments. Guaranteed offtake agreements create predictable income for community entrepreneurs",
-     FOREST2),
+     "Direct purchase payments at guaranteed rates. Offtake agreements create "
+     "predictable, sustainable income for community entrepreneurs.",
+     GREEN2),
 ]):
-    x = Inches(0.3 + i * 4.25)
-    add_rect(slide, x, Inches(5.2), Inches(4.1), Inches(2.1), bg)
-    add_text(slide, title, x+Inches(0.15), Inches(5.3), Inches(3.85), Inches(0.35),
-             size=10, bold=True, color=ORANGE2)
-    add_text(slide, body, x+Inches(0.15), Inches(5.66), Inches(3.85), Inches(1.5),
-             size=10, color=RGBColor(0xCC,0xDD,0xCC))
+    x = Inches(0.5 + i * 4.28)
+    R(sl, x, CONTENT_Y+Inches(3.05), Inches(4.1), Inches(2.1), bg)
+    R(sl, x, CONTENT_Y+Inches(3.05), Inches(0.038), Inches(2.1), ORANGE)
+    T(sl, ttl,
+      x+Inches(0.18), CONTENT_Y+Inches(3.15), Inches(3.8), Inches(0.35),
+      sz=10, bold=True, color=ORANGE)
+    T(sl, body,
+      x+Inches(0.18), CONTENT_Y+Inches(3.52), Inches(3.8), Inches(1.5),
+      sz=10, color=RGBColor(0xCC,0xDD,0xCC))
 
 
 # ═══════════════════════════════════════════════════════════
-# SLIDE 11 — PARTNERS & STAKEHOLDERS
+# SLIDE 12 — 3-MONTH BUDGET
 # ═══════════════════════════════════════════════════════════
-slide = prs.slides.add_slide(BLANK)
-add_rect(slide, 0, 0, W, H, CREAM)
-section_header(slide, "Partners & Stakeholders", "Backed by Leading Institutions", dark=True)
+sl = prs.slides.add_slide(BLANK)
+R(sl, 0, 0, W, H, WHITE)
+section_head(sl, "Operational Budget", "3-Month Operational Budget Breakdown", 12)
+
+budget_items = [
+    ("Salaries & Wages",       "K20.3M",  "All 51 staff, 3 months — above minimum wage"),
+    ("Raw Materials",           "K7.5M",   "Clay, binding agents, consumables"),
+    ("Machinery & Tools",       "K4.6M",   "Maintenance, spare parts, equipment"),
+    ("PPE & Safety",            "K4.7M",   "Personal protective equipment for all staff"),
+    ("Office & IT",             "K2.6M",   "Admin, communications, office operations"),
+    ("Utilities & Energy",      "K1.6M",   "ESCOM power, water, fuel logistics"),
+    ("Marketing & Sales",       "K1.0M",   "Client outreach, DEC, tenders"),
+    ("Insurance & Admin",       "K0.7M",   "Business insurance, legal, compliance"),
+]
+
+# Left: table
+table(sl, Inches(0.5), CONTENT_Y, Inches(7.6), 9, 3,
+    [["Budget Line",       "Amount (MWK)", "Description"]] +
+    [[i, a, d] for i, a, d in budget_items] ,
+    cw=[Inches(2.5), Inches(1.5), Inches(3.6)])
+
+# Right: summary cards + total
+R(sl, Inches(8.3), CONTENT_Y, Inches(4.53), Inches(1.58), GREEN)
+R(sl, Inches(8.3), CONTENT_Y, Inches(0.038), Inches(1.58), ORANGE)
+T(sl, "TOTAL 3-MONTH BUDGET",
+  Inches(8.5), CONTENT_Y+Inches(0.12), Inches(4.1), Inches(0.3),
+  sz=9, bold=True, color=ORANGE)
+T(sl, "K43.0 Million",
+  Inches(8.5), CONTENT_Y+Inches(0.42), Inches(4.1), Inches(0.7),
+  sz=32, bold=True, color=WHITE)
+T(sl, "Approx. USD 24,700  ·  3-month operational runway",
+  Inches(8.5), CONTENT_Y+Inches(1.1), Inches(4.1), Inches(0.32),
+  sz=9, color=RGBColor(0xCC,0xDD,0xCC))
+
+# Bar chart (visual approximation)
+T(sl, "Budget Distribution",
+  Inches(8.3), CONTENT_Y+Inches(1.75), Inches(4.53), Inches(0.28),
+  sz=10, bold=True, color=DARK)
+
+bar_colors = [GREEN, ORANGE, GREEN2, RGBColor(0xCA,0x8A,0x04),
+              DARK, GREEN3, ORANGE, RGBColor(0x6B,0x7B,0x8D)]
+bar_values = [20.3, 7.5, 4.6, 4.7, 2.6, 1.6, 1.0, 0.7]
+bar_max = 20.3
+bar_total_w = Inches(4.3)
+for bi, (lbl, val) in enumerate(zip([x[0] for x in budget_items], bar_values)):
+    by = CONTENT_Y + Inches(2.1 + bi * 0.58)
+    bw = bar_total_w * (val / bar_max)
+    short_lbl = lbl.split(" ")[0]
+    T(sl, short_lbl, Inches(8.3), by, Inches(1.55), Inches(0.34),
+      sz=8.5, color=GRAY)
+    R(sl, Inches(9.85), by+Inches(0.04), bw, Inches(0.26), bar_colors[bi])
+    T(sl, f"K{val}M", Inches(9.85)+bw+Inches(0.08), by, Inches(0.8), Inches(0.3),
+      sz=8, color=DARK)
+
+
+# ═══════════════════════════════════════════════════════════
+# SLIDE 13 — PARTNERS & STAKEHOLDERS
+# ═══════════════════════════════════════════════════════════
+sl = prs.slides.add_slide(BLANK)
+R(sl, 0, 0, W, H, WHITE)
+section_head(sl, "Partners & Stakeholders", "Backed by Leading Institutions", 13)
 
 partners = [
-    ("GIZ",       "Deutsche Gesellschaft für\nInternationale Zusammenarbeit",
-     "Technical & Financial Partner\nGerman Development Cooperation"),
-    ("Atmosfair",  "German Climate Protection NGO\nBerlin, Germany",
-     "Carbon Finance & Climate Compliance\nLoan Provider (EUR 175,000)"),
-    ("CCODE",      "Centre for Community\nOrganisation & Development",
-     "Community Engagement\n& Local Development Partner"),
-    ("TERA",       "Technical & Environmental\nResearch Associate",
-     "Environmental Compliance\n& Research Partner"),
-    ("MUBAS",      "Malawi University of Business\n& Applied Sciences",
-     "Academic Research\n& Skills Development"),
-    ("CIRA",       "Construction Industry\nRegulatory Authority",
-     "Industry Compliance\n& Market Development"),
+    ("GIZ",      "Deutsche Gesellschaft fur Internationale Zusammenarbeit",
+     "Technical & Financial Partner",   "German Development Cooperation"),
+    ("Atmosfair", "German Climate Protection NGO  ·  Berlin",
+     "Carbon Finance & Loan Provider",  "EUR 175,000 (2nd Amendment, Apr 2026)"),
+    ("CCODE",    "Centre for Community Organisation & Development",
+     "Community Engagement",            "Local Development Partner"),
+    ("TERA",     "Technical & Environmental Research Associates",
+     "Environmental Compliance",        "Research & Advisory Partner"),
+    ("MUBAS",    "Malawi University of Business & Applied Sciences",
+     "Academic Research",               "Skills Development & Knowledge"),
+    ("CIRA",     "Construction Industry Regulatory Authority",
+     "Industry Compliance",             "Market Standards & Development"),
 ]
-for i, (name, org, role) in enumerate(partners):
-    col = i % 3
-    row = i // 3
-    x = Inches(0.3 + col * 4.25)
-    y = Inches(1.55 + row * 2.65)
-    add_rect(slide, x, y, Inches(4.1), Inches(2.4), WHITE)
-    add_rect(slide, x, y, Inches(4.1), Inches(0.06), ORANGE if row == 0 else FOREST)
-    add_text(slide, name, x+Inches(0.15), y+Inches(0.14), Inches(3.8), Inches(0.48),
-             size=20, bold=True, color=FOREST)
-    add_text(slide, org, x+Inches(0.15), y+Inches(0.62), Inches(3.8), Inches(0.5),
-             size=9, color=DGRAY)
-    add_text(slide, role, x+Inches(0.15), y+Inches(1.12), Inches(3.8), Inches(0.5),
-             size=9, bold=True, color=CHARCOAL)
+for i, (abbr, org, role, sub) in enumerate(partners):
+    col = i % 3; row = i // 3
+    x = Inches(0.5 + col * 4.28)
+    y = CONTENT_Y + Inches(row * 2.58)
+    acc = ORANGE if row == 0 else GREEN
+    R(sl, x, y, Inches(4.1), Inches(2.42), CARD)
+    R(sl, x, y, Inches(0.038), Inches(2.42), acc)
+    T(sl, abbr,
+      x+Inches(0.18), y+Inches(0.12), Inches(3.8), Inches(0.55),
+      sz=24, bold=True, color=GREEN)
+    T(sl, org,
+      x+Inches(0.18), y+Inches(0.68), Inches(3.8), Inches(0.38),
+      sz=8.5, color=GRAY)
+    T(sl, role,
+      x+Inches(0.18), y+Inches(1.06), Inches(3.8), Inches(0.3),
+      sz=10, bold=True, color=DARK)
+    T(sl, sub,
+      x+Inches(0.18), y+Inches(1.36), Inches(3.8), Inches(0.85),
+      sz=9, color=LGRAY)
 
-add_rect(slide, Inches(0.3), Inches(7.0), Inches(12.73), Inches(0.42), CHARCOAL)
-add_text(slide,
-         "Government  ·  NGOs & Dev Finance  ·  Academic Institutions  ·  Industry Regulators  ·  Community Organisations",
-         Inches(0.5), Inches(7.05), Inches(12.4), Inches(0.32),
-         size=10, bold=True, color=WHITE, align=PP_ALIGN.CENTER)
+footer_bar(sl,
+    "Government  ·  NGOs & Development Finance  ·  "
+    "Academic Institutions  ·  Industry Regulators  ·  Community Organisations")
 
 
 # ═══════════════════════════════════════════════════════════
-# SLIDE 12 — IMPLEMENTATION ROADMAP
+# SLIDE 14 — IMPLEMENTATION ROADMAP
 # ═══════════════════════════════════════════════════════════
-slide = prs.slides.add_slide(BLANK)
-add_rect(slide, 0, 0, W, H, RGBColor(0x0F,0x1F,0x15))
-section_header(slide, "Implementation Roadmap", "Phased Growth Plan — 2026 to 2029", dark=False)
+sl = prs.slides.add_slide(BLANK)
+R(sl, 0, 0, W, H, WHITE)
+section_head(sl, "Implementation Roadmap", "Phased Growth Plan — 2026 to 2029", 14)
 
 phases = [
-    (FOREST2, "PHASE 1", "Foundation &\nCommissioning",
-     "Apr–May 2026",
-     ["VSK kiln commissioning complete", "18→33 staff on-boarded", "Moulding operations begin",
-      "≥3,000 bricks/day output", "First client engagements"]),
-    (ORANGE, "PHASE 2", "Scale\nProduction",
-     "May–Jun 2026",
-     ["Output scaled to ≥5,000/day", "39–40 staff deployed", "Kiln utilisation >80%",
-      "50,000+ bricks/week orders", "Market penetration active"]),
-    (FMID, "PHASE 3", "Full-Scale\nOperations",
-     "Jun–Jul 2026",
-     ["45 staff at full capacity", "Output ≥7,000 bricks/day", "≥5 active bulk clients",
-      "Double-shift introduced", "Revenue targets met"]),
-    (RGBColor(0x3B,0x82,0xF6), "PHASE 4", "Expansion &\nInnovation",
-     "2026–2029",
-     ["200+ internal staff", "8,000+ ecosystem jobs", "BIOGAS 2nd kiln (14 months)",
-      "Revenue >$2.5M USD", "Southern Africa expansion"]),
+    (GREEN,  "PHASE 1", "Foundation &\nCommissioning", "Apr – May 2026",
+     True,    # show commissioning badge
+     ["VSK kiln commissioning complete",
+      "18 → 33 staff on-boarded",
+      "Moulding operations launched",
+      "≥3,000 bricks/day output",
+      "First client engagements"]),
+    (ORANGE, "PHASE 2", "Scale\nProduction", "May – Jun 2026",
+     False,
+     ["Output scaled to ≥5,000/day",
+      "39–40 staff deployed",
+      "Kiln utilisation >80%",
+      "50,000+ bricks/week orders",
+      "Market penetration active"]),
+    (GREEN2, "PHASE 3", "Full-Scale\nOperations", "Jun – Jul 2026",
+     False,
+     ["45 staff at full capacity",
+      "Output ≥7,000 bricks/day",
+      "≥5 active bulk clients",
+      "Double-shift introduced",
+      "Revenue targets met"]),
+    (RGBColor(0x3B,0x82,0xF6), "PHASE 4", "Expansion &\nInnovation", "2026 – 2029",
+     False,
+     ["200+ internal staff",
+      "8,000+ ecosystem jobs",
+      "Biogas 2nd kiln shaft",
+      "Revenue >$2.5M USD",
+      "Southern Africa expansion"]),
 ]
-pw = Inches(2.95)
-for i, (bg, ph, title, period, pts) in enumerate(phases):
-    x = Inches(0.3 + i * 3.25)
-    add_rect(slide, x, Inches(1.55), pw, Inches(0.6), bg)
-    add_text(slide, ph, x+Inches(0.15), Inches(1.6), pw-Inches(0.3), Inches(0.25),
-             size=10, bold=True, color=WHITE)
-    add_text(slide, period, x+Inches(0.15), Inches(1.82), pw-Inches(0.3), Inches(0.28),
-             size=8, color=RGBColor(0xCC,0xCC,0xCC))
-    add_rect(slide, x, Inches(2.15), pw, Inches(4.5), RGBColor(0x15,0x30,0x1E))
-    add_text(slide, title, x+Inches(0.15), Inches(2.2), pw-Inches(0.3), Inches(0.5),
-             size=14, bold=True, color=WHITE)
-    tx = slide.shapes.add_textbox(x+Inches(0.15), Inches(2.72), pw-Inches(0.25), Inches(3.8))
-    tx.word_wrap = True; tf = tx.text_frame; tf.word_wrap = True
+PW = Inches(2.9)
+for i, (bg, ph, title, period, show_badge, pts) in enumerate(phases):
+    x = Inches(0.5 + i * 3.21)
+    # Phase label header
+    R(sl, x, CONTENT_Y, PW, Inches(0.58), bg)
+    T(sl, ph, x+Inches(0.15), CONTENT_Y+Inches(0.06),
+      PW-Inches(0.3), Inches(0.28), sz=10, bold=True, color=WHITE)
+    T(sl, period, x+Inches(0.15), CONTENT_Y+Inches(0.32),
+      PW-Inches(0.3), Inches(0.22), sz=8.5, color=WHITE)
+    # Body panel
+    R(sl, x, CONTENT_Y+Inches(0.58), PW, Inches(4.58), CARD)
+    T(sl, title, x+Inches(0.15), CONTENT_Y+Inches(0.65),
+      PW-Inches(0.3), Inches(0.55), sz=14, bold=True, color=DARK)
+    # Commissioning badge in Phase 1
+    if show_badge:
+        R(sl, x+Inches(0.15), CONTENT_Y+Inches(1.22), PW-Inches(0.25), Inches(0.36),
+          RGBColor(0xFF,0xF3,0xE0))
+        T(sl, "27 May 2026 — Commissioning Ceremony",
+          x+Inches(0.22), CONTENT_Y+Inches(1.25), PW-Inches(0.38), Inches(0.28),
+          sz=8.5, bold=True, color=ORANGE)
+        bullet_start_y = CONTENT_Y + Inches(1.65)
+    else:
+        bullet_start_y = CONTENT_Y + Inches(1.28)
+    bx = sl.shapes.add_textbox(
+        x+Inches(0.15), bullet_start_y, PW-Inches(0.2), Inches(3.4))
+    bx.word_wrap = True; tf = bx.text_frame; tf.word_wrap = True
+    first = True
     for pt in pts:
-        add_para(tf, "• " + pt, 10, False, RGBColor(0xCC,0xEE,0xCC), space_before=7)
+        if first: p = tf.paragraphs[0]; first = False
+        else: p = tf.add_paragraph()
+        p.space_before = Pt(7)
+        r = p.add_run(); r.text = pt
+        r.font.size = Pt(10); r.font.color.rgb = GRAY; r.font.name = F
 
 # Biogas spotlight
-add_rect(slide, Inches(0.3), Inches(6.75), Inches(12.73), Inches(0.68), RGBColor(0x92,0x40,0x0E))
-add_text(slide, "🔥  IN 14 MONTHS: Biogas-Powered 2nd VSK Kiln Shaft — First Biogas Brick Producer in Malawi · Doubles Capacity",
-         Inches(0.5), Inches(6.82), Inches(12.4), Inches(0.55),
-         size=12, bold=True, color=WHITE, align=PP_ALIGN.CENTER)
+R(sl, Inches(0.5), H-Inches(0.55), Inches(12.33), Inches(0.5), GREEN)
+R(sl, Inches(0.5), H-Inches(0.55), Inches(0.038), Inches(0.5), ORANGE)
+T(sl, "IN 14 MONTHS: Biogas-Powered 2nd VSK Kiln Shaft — "
+  "First Biogas Brick Producer in Malawi  ·  Doubles Capacity",
+  Inches(0.7), H-Inches(0.5), Inches(11.9), Inches(0.42),
+  sz=11.5, bold=True, color=WHITE, align=PP_ALIGN.CENTER)
 
 
 # ═══════════════════════════════════════════════════════════
-# SLIDE 13 — WHY THE DISTRICT / WHY NEVAGS
+# SLIDE 15 — WHY DISTRICT / WHY NEVAGS
 # ═══════════════════════════════════════════════════════════
-slide = prs.slides.add_slide(BLANK)
-add_rect(slide, 0, 0, W, H, CREAM)
-section_header(slide, "A Relationship of Mutual Benefit",
-               "Why Mulanje Needs NEVAGS · Why NEVAGS Needs Mulanje", dark=True)
+sl = prs.slides.add_slide(BLANK)
+R(sl, 0, 0, W, H, WHITE)
+section_head(sl, "A Relationship of Mutual Benefit",
+             "Why Mulanje Needs NEVAGS  ·  Why NEVAGS Needs Mulanje", 15)
 
-# Left: Why district needs NEVAGS
-add_rect(slide, Inches(0.3), Inches(1.48), Inches(6.0), Inches(5.85), FOREST)
-add_text(slide, "WHY MULANJE DISTRICT NEEDS NEVAGS",
-         Inches(0.5), Inches(1.58), Inches(5.6), Inches(0.3),
-         size=10, bold=True, color=ORANGE)
-tx = slide.shapes.add_textbox(Inches(0.5), Inches(1.92), Inches(5.65), Inches(5.2))
-tx.word_wrap = True; tf = tx.text_frame; tf.word_wrap = True
-for title, body in [
-    ("Policy Compliance",
-     "NEVAGS is the only VSK producer in the district — the ONLY legal solution to the firewood ban. Every govt & NGO project needs us."),
-    ("8,000+ Jobs",
-     "The largest potential job creator in Mulanje history — from factory to community supply chain, all within 3 years."),
-    ("Forest Protection",
-     "Every NEVAGS brick protects Mulanje Massif's forests, water catchments, and biodiversity."),
-    ("Black-Owned Pioneer",
-     "One of the first black-owned industrial enterprises in Mulanje. Supporting NEVAGS sends a historic signal."),
-    ("Tax & Local Economy",
-     "Revenue stays in Mulanje — paying wages, buying local supplies, and contributing to district tax revenue."),
-]:
-    add_para(tf, title, 11, True, ORANGE2, space_before=8)
-    add_para(tf, body, 9, False, RGBColor(0xCC,0xEE,0xCC), space_before=2)
-
-# Right: Why NEVAGS needs district
-add_rect(slide, Inches(6.5), Inches(1.48), Inches(6.53), Inches(5.85), CHARCOAL)
-add_text(slide, "WHY NEVAGS NEEDS MULANJE DISTRICT",
-         Inches(6.7), Inches(1.58), Inches(6.1), Inches(0.3),
-         size=10, bold=True, color=ORANGE)
-tx2 = slide.shapes.add_textbox(Inches(6.7), Inches(1.92), Inches(6.15), Inches(5.2))
-tx2.word_wrap = True; tf2 = tx2.text_frame; tf2.word_wrap = True
-for title, body in [
-    ("DEC Endorsement",
-     "Formal endorsement opens government procurement — millions of bricks in guaranteed long-term demand."),
-    ("Workforce",
-     "Mulanje's community is our talent pool. District cooperation enables the community training programme."),
-    ("Biomass Supply",
-     "Rice husks and farm biomass from Mulanje's farmers are our fuel. We need the agricultural sector as a partner."),
-    ("Infrastructure",
-     "Stable ESCOM power, road access, and land tenure security require district-level facilitation and support."),
-    ("Policy Champion",
-     "As a pioneering black enterprise, NEVAGS needs the DEC to champion, protect, and amplify our growth."),
-]:
-    add_para(tf2, title, 11, True, ORANGE2, space_before=8)
-    add_para(tf2, body, 9, False, RGBColor(0xCC,0xCC,0xCC), space_before=2)
+for ci, (bg, accent, heading, pairs) in enumerate([
+    (GREEN, ORANGE, "WHY MULANJE DISTRICT NEEDS NEVAGS", [
+        ("Policy Compliance",
+         "NEVAGS is the only VSK producer in the district — the only legal solution "
+         "to the firewood ban. Every government and NGO project needs compliant bricks."),
+        ("8,000+ Jobs",
+         "The largest potential job creator in Mulanje history — "
+         "from factory floor to the community supply chain, within 3 years."),
+        ("Forest Protection",
+         "Every NEVAGS brick protects the Mulanje Massif's forests, "
+         "water catchments and biodiversity."),
+        ("Black-Owned Pioneer",
+         "One of the first black-owned industrial enterprises in Mulanje. "
+         "Supporting NEVAGS sends a historic signal for the district."),
+        ("Local Economy",
+         "Revenue stays in Mulanje — wages, local supply purchases, "
+         "and growing district tax revenues."),
+    ]),
+    (DARK, ORANGE, "WHY NEVAGS NEEDS MULANJE DISTRICT", [
+        ("DEC Endorsement",
+         "Formal endorsement unlocks government procurement — "
+         "millions of bricks in guaranteed long-term contracts."),
+        ("Workforce",
+         "Mulanje's community is our talent pool. District cooperation "
+         "enables the community training and moulding programme."),
+        ("Biomass Supply",
+         "Rice husks and farm biomass from Mulanje's farmers are our kiln fuel. "
+         "We need the agricultural sector as a strategic partner."),
+        ("Infrastructure",
+         "Stable ESCOM power, road access and land tenure security "
+         "require district-level facilitation."),
+        ("Policy Champion",
+         "As a pioneering black enterprise, NEVAGS needs the DEC "
+         "to champion, protect and amplify our growth."),
+    ]),
+]):
+    x = Inches(0.5 + ci * 6.5)
+    R(sl, x, CONTENT_Y, Inches(6.2), Inches(5.42), bg)
+    R(sl, x, CONTENT_Y, Inches(0.038), Inches(5.42), accent)
+    T(sl, heading,
+      x+Inches(0.18), CONTENT_Y+Inches(0.12), Inches(5.9), Inches(0.28),
+      sz=9, bold=True, color=ORANGE)
+    R(sl, x+Inches(0.18), CONTENT_Y+Inches(0.44), Inches(5.9), Inches(0.018),
+      RGBColor(0x40,0x65,0x50))
+    bx = sl.shapes.add_textbox(
+        x+Inches(0.18), CONTENT_Y+Inches(0.52), Inches(5.85), Inches(4.7))
+    bx.word_wrap = True; tf = bx.text_frame; tf.word_wrap = True
+    first = True
+    for title_t, body_t in pairs:
+        if not first:
+            p = tf.add_paragraph(); p.space_before = Pt(2)
+            r = p.add_run(); r.text = ""; r.font.name = F
+        p = tf.add_paragraph() if not first else tf.paragraphs[0]
+        first = False
+        p.space_before = Pt(6)
+        r = p.add_run(); r.text = title_t
+        r.font.size = Pt(11); r.font.bold = True
+        r.font.color.rgb = AMBER; r.font.name = F
+        p2 = tf.add_paragraph(); p2.space_before = Pt(2)
+        r2 = p2.add_run(); r2.text = body_t
+        r2.font.size = Pt(9.5)
+        r2.font.color.rgb = RGBColor(0xCC,0xEE,0xCC) if ci == 0 else RGBColor(0xCC,0xCC,0xCC)
+        r2.font.name = F
 
 
 # ═══════════════════════════════════════════════════════════
-# SLIDE 14 — THE ASK & CONTACT
+# SLIDE 16 — THE ASK & CONTACT
 # ═══════════════════════════════════════════════════════════
-slide = prs.slides.add_slide(BLANK)
-add_rect(slide, 0, 0, W, H, RGBColor(0x0A,0x18,0x0E))
-add_rect(slide, 0, 0, Inches(0.45), H, ORANGE)
+sl = prs.slides.add_slide(BLANK)
+R(sl, 0, 0, W, H, WHITE)
+# Dark left panel
+R(sl, 0, 0, Inches(0.5), H, GREEN)
+# Orange accent top
+R(sl, Inches(0.5), 0, Inches(12.83), Inches(0.06), ORANGE)
 
-add_text(slide, "PARTNERSHIP INVITATION",
-         Inches(0.65), Inches(0.2), Inches(12), Inches(0.35),
-         size=10, bold=True, color=ORANGE)
-add_text(slide, "Let's Build Malawi's\nSustainable Future Together",
-         Inches(0.65), Inches(0.52), Inches(10), Inches(1.3),
-         size=34, bold=True, color=WHITE)
-add_text(slide, "NEVAGS asks the District Executive Committee for three things:",
-         Inches(0.65), Inches(1.85), Inches(12), Inches(0.3),
-         size=11, color=RGBColor(0xCC,0xDD,0xCC))
+page_header(sl, "Partnership Invitation", 16, invert=False)
 
-# 3 Asks
+T(sl, "PARTNERSHIP INVITATION",
+  Inches(0.65), Inches(0.7), Inches(12), Inches(0.28),
+  sz=9, bold=True, color=ORANGE)
+T(sl, "Let’s Build Malawi’s\nSustainable Future Together",
+  Inches(0.65), Inches(0.95), Inches(10), Inches(1.1),
+  sz=34, bold=True, color=DARK)
+T(sl, "NEVAGS asks the District Executive Committee for three things:",
+  Inches(0.65), Inches(2.1), Inches(12), Inches(0.28),
+  sz=11, color=GRAY)
+
+# 3 ask cards
 for i, (num, title, body) in enumerate([
     ("1", "Recognition & Endorsement",
-     "Formally recognise NEVAGS as a strategic district partner — opening government procurement, NGO supply contracts, and public sector projects."),
+     "Formally recognise NEVAGS as a strategic district partner — opening "
+     "government procurement, NGO supply contracts and public sector projects."),
     ("2", "Community Programme Support",
-     "Facilitate community outreach, training endorsement, and biomass supply chain development through district channels."),
+     "Facilitate community outreach, training endorsement and biomass supply chain "
+     "development through district channels and networks."),
     ("3", "Infrastructure Facilitation",
-     "Support stable power supply, road infrastructure, and land tenure security — foundational needs for NEVAGS to scale."),
+     "Support stable ESCOM power, road infrastructure and land tenure security — "
+     "the foundational requirements for NEVAGS to scale and deliver on all commitments."),
 ]):
     x = Inches(0.65 + i * 4.2)
-    add_rect(slide, x, Inches(2.2), Inches(3.9), Inches(2.4), RGBColor(0x15,0x35,0x20))
-    add_text(slide, num, x+Inches(0.15), Inches(2.3), Inches(0.45), Inches(0.45),
-             size=22, bold=True, color=ORANGE)
-    add_text(slide, title, x+Inches(0.62), Inches(2.3), Inches(3.1), Inches(0.45),
-             size=12, bold=True, color=WHITE)
-    add_text(slide, body, x+Inches(0.15), Inches(2.78), Inches(3.65), Inches(1.72),
-             size=9, color=RGBColor(0xBB,0xCC,0xBB))
+    R(sl, x, Inches(2.52), Inches(4.0), Inches(2.32), CARD)
+    R(sl, x, Inches(2.52), Inches(0.038), Inches(2.32), GREEN if i != 1 else ORANGE)
+    T(sl, num, x+Inches(0.15), Inches(2.6), Inches(0.45), Inches(0.45),
+      sz=24, bold=True, color=RGBColor(0xD1,0xD5,0xDB))
+    T(sl, title, x+Inches(0.65), Inches(2.6), Inches(3.2), Inches(0.42),
+      sz=12, bold=True, color=DARK)
+    T(sl, body, x+Inches(0.18), Inches(3.06), Inches(3.7), Inches(1.65),
+      sz=9.5, color=GRAY)
 
 # Contact cards
-add_text(slide, "CONTACTS", Inches(0.65), Inches(4.75), Inches(12), Inches(0.28),
-         size=9, bold=True, color=ORANGE)
+T(sl, "CONTACTS",
+  Inches(0.65), Inches(5.0), Inches(12), Inches(0.26),
+  sz=9, bold=True, color=ORANGE)
 
 for i, (role, name, lines) in enumerate([
     ("Managing Director",
      "Charles Billy Nasala",
-     ["+265 888 34 75 75  |  +265 99 751 0160",
+     ["+265 888 34 75 75  ·  +265 99 751 0160",
       "nasalacharles.b@gmail.com"]),
     ("Founding Engineer & BD Manager",
      "Chancy Tausi Tsonga",
-     ["+265 984 000 366  |  WA: +27 764 998 4601",
-      "chancy.tsonga@yahoo.com  |  chancytsonga.com"]),
-    ("Careers & Location",
-     "Join NEVAGS",
+     ["+265 984 000 366  ·  WA: +27 764 998 4601",
+      "chancy.tsonga@yahoo.com  ·  chancytsonga.com"]),
+    ("Careers & Head Office",
+     "NEVAGS Human Resources",
      ["careers.nevags@gmail.com",
-      "Musewu, Mulanje District · P.O. Box 90"]),
+      "Musewu, Mulanje District  ·  P.O. Box 90"]),
 ]):
     x = Inches(0.65 + i * 4.2)
-    add_rect(slide, x, Inches(5.05), Inches(3.9), Inches(2.3), RGBColor(0x1C,0x3A,0x25))
-    add_text(slide, role, x+Inches(0.15), Inches(5.12), Inches(3.65), Inches(0.25),
-             size=8, bold=True, color=ORANGE)
-    add_text(slide, name, x+Inches(0.15), Inches(5.35), Inches(3.65), Inches(0.38),
-             size=13, bold=True, color=WHITE)
-    for j, line in enumerate(lines):
-        add_text(slide, line, x+Inches(0.15), Inches(5.77 + j*0.34), Inches(3.65), Inches(0.32),
-                 size=8.5, color=RGBColor(0xBB,0xDD,0xBB))
+    R(sl, x, Inches(5.28), Inches(4.0), Inches(1.88), CARD)
+    R(sl, x, Inches(5.28), Inches(0.038), Inches(1.88), GREEN)
+    T(sl, role, x+Inches(0.18), Inches(5.36), Inches(3.7), Inches(0.24),
+      sz=8.5, bold=True, color=ORANGE)
+    T(sl, name, x+Inches(0.18), Inches(5.60), Inches(3.7), Inches(0.36),
+      sz=13, bold=True, color=DARK)
+    for j, ln in enumerate(lines):
+        T(sl, ln, x+Inches(0.18), Inches(5.98 + j*0.3), Inches(3.7), Inches(0.28),
+          sz=9, color=GRAY)
 
-# Final tagline
-add_rect(slide, Inches(0.65), Inches(7.12), Inches(12.08), Inches(0.35), ORANGE)
-add_text(slide,
-         "NEVAGS ECO BRICK & CONSTRUCTION  ·  Reg. 46289  ·  Musewu, Mulanje, Malawi  ·  Building Tomorrow Sustainably",
-         Inches(0.8), Inches(7.16), Inches(11.8), Inches(0.28),
-         size=9, bold=True, color=WHITE, align=PP_ALIGN.CENTER)
+# Final footer
+R(sl, Inches(0.5), H-Inches(0.38), Inches(12.33), Inches(0.38), GREEN)
+T(sl, "NEVAGS ECO BRICK & CONSTRUCTION  "
+  "·  Reg. 46289  "
+  "·  Musewu, Mulanje, Malawi  "
+  "·  Building Tomorrow Sustainably",
+  Inches(0.7), H-Inches(0.34), Inches(11.9), Inches(0.28),
+  sz=9, bold=True, color=WHITE, align=PP_ALIGN.CENTER)
 
 
 # ═══════════════════════════════════════════════════════════
@@ -892,4 +1194,4 @@ add_text(slide,
 # ═══════════════════════════════════════════════════════════
 out = "NEVAGS_DEC_Presentation_2026.pptx"
 prs.save(out)
-print(f"Saved: {out}  ({prs.slides.__len__()} slides)")
+print(f"Saved: {out}  ({len(prs.slides)} slides)")
